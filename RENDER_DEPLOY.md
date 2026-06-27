@@ -68,9 +68,14 @@ In Render unter **Environment** setzen:
 ```text
 OPENAI_API_KEY = dein_neuer_openai_key
 OPENAI_MODEL = gpt-4.1-mini
+TWILIO_ACCOUNT_SID = AC...
+TWILIO_AUTH_TOKEN = dein_twilio_auth_token
+TWILIO_WHATSAPP_FROM = whatsapp:+14155238886
 ```
 
-Der OpenAI-Key darf nicht in GitHub liegen.
+Der OpenAI-Key und die Twilio-Daten duerfen nicht in GitHub liegen.
+
+Fuer den ersten Twilio-Test ist `whatsapp:+14155238886` meist die Sandbox-Absendernummer. Fuer Produktion nutzt du spaeter deine freigeschaltete WhatsApp Business Nummer.
 
 ## 5. Test
 
@@ -85,3 +90,29 @@ Erwartet:
 ```json
 {"configured": true, "model": "gpt-4.1-mini", "mode": "platform_managed"}
 ```
+
+Twilio testen:
+
+```text
+https://deine-render-url.onrender.com/api/twilio-status
+```
+
+Erwartet:
+
+```json
+{"configured": true, "from": "***8886", "mode": "whatsapp_business"}
+```
+
+## 6. Twilio WhatsApp Inbound Webhook
+
+Damit der Bot Antworten von Bewerbern automatisch verarbeiten kann, muss Twilio eingehende WhatsApp-Nachrichten an RecruitOS senden.
+
+In Twilio unter **Messaging -> Try it out -> Send a WhatsApp message -> Sandbox settings**:
+
+```text
+When a message comes in:
+https://deine-render-url.onrender.com/api/whatsapp/inbound
+Method: HTTP POST
+```
+
+Lokal funktioniert `http://127.0.0.1:8000/api/whatsapp/inbound` nur fuer Tests auf deinem Rechner. Twilio selbst kann `127.0.0.1` nicht erreichen. Fuer echte WhatsApp-Antworten brauchst du deine Render-URL oder einen Tunnel wie ngrok.

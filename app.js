@@ -460,7 +460,12 @@ function renderBotResult(intake) {
       <div class="whatsapp-preview">
         <strong>WhatsApp Erstnachricht</strong>
         <p>${escapeHtml(intake.whatsappMessage)}</p>
-        ${intake.phone ? `<a href="${createWhatsAppLink(intake.phone, intake.whatsappMessage)}" target="_blank" rel="noreferrer">In WhatsApp oeffnen</a>` : ""}
+        ${intake.phone ? `
+          <div class="whatsapp-actions">
+            <button class="secondary-action" id="send-whatsapp-from-bot" type="button">Per Twilio senden</button>
+            <a href="${createWhatsAppLink(intake.phone, intake.whatsappMessage)}" target="_blank" rel="noreferrer">In WhatsApp oeffnen</a>
+          </div>
+        ` : ""}
       </div>
     ` : ""}
     <div class="tag-row">
@@ -502,6 +507,23 @@ function renderBotResult(intake) {
     saveAndRender();
     switchView("candidates");
   });
+
+  const sendButton = document.querySelector("#send-whatsapp-from-bot");
+  if (sendButton) {
+    sendButton.addEventListener("click", async () => {
+      sendButton.disabled = true;
+      sendButton.textContent = "Sende...";
+      const result = await sendWhatsAppMessage(intake.phone, intake.whatsappMessage);
+      sendButton.textContent = result.sent ? "Gesendet" : "Senden fehlgeschlagen";
+      if (!result.sent) {
+        const warning = document.createElement("div");
+        warning.className = "api-warning";
+        warning.textContent = result.error || "WhatsApp konnte nicht gesendet werden.";
+        els.botResult.insertBefore(warning, document.querySelector("#create-candidate-from-bot"));
+        sendButton.disabled = false;
+      }
+    });
+  }
 }
 
 async function runBotIntake(payload) {
@@ -532,6 +554,29 @@ async function runBotIntake(payload) {
       ...fallback,
       aiEnabled: false,
       warning: `Backend nicht erreichbar, lokale Demo-Auswertung genutzt: ${error.message}`,
+    };
+  }
+}
+
+async function sendWhatsAppMessage(to, message) {
+  try {
+    const response = await fetch("/api/whatsapp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to,
+        message,
+        organizationId: getCurrentOrganizationId(),
+        userId: currentUser?.id || "anonymous",
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) return { sent: false, error: result.error || `API Status ${response.status}` };
+    return result;
+  } catch (error) {
+    return {
+      sent: false,
+      error: `Backend nicht erreichbar: ${error.message}`,
     };
   }
 }

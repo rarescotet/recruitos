@@ -1,8 +1,11 @@
 import json
 import os
 import re
+import base64
+import html
 import urllib.error
 import urllib.request
+import urllib.parse
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -11,7 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 OPENAI_API_URL = "https://api.openai.com/v1/responses"
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
+TWILIO_API_BASE = "https://api.twilio.com/2010-04-01"
 USAGE_LOG = ROOT / "ai_usage_events.json"
+CONVERSATION_LOG = ROOT / "whatsapp_conversations.json"
 DOCUMENT_LABELS = {
     "cv": "Lebenslauf",
     "certificate": "Zertifikate",
@@ -25,6 +30,27 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_POST(self):
+        if self.path == "/api/whatsapp/inbound":
+            try:
+                payload = self._read_form()
+                result = handle_whatsapp_inbound(payload)
+            except Exception as exc:
+                result = {
+                    "reply": "Danke fuer deine Nachricht. Ich pruefe das gerade und melde mich gleich wieder.",
+                    "warning": str(exc),
+                }
+            self._send_twiml(result.get("reply", "Danke, deine Nachricht wurde erfasst."))
+            return
+
+        if self.path == "/api/whatsapp/send":
+            try:
+                payload = self._read_json()
+                result = send_whatsapp_with_twilio(payload)
+            except Exception as exc:
+                result = {"sent": False, "error": safe_twilio_error(exc)}
+            self._send_json(result, status=200 if result.get("sent") else 400)
+            return
+
         if self.path != "/api/bot-intake":
             self.send_error(404, "Not found")
             return
@@ -48,8 +74,18 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
                 "mode": "platform_managed",
             })
             return
+        if self.path == "/api/twilio-status":
+            self._send_json({
+                "configured": twilio_configured(),
+                "from": mask_phone(os.environ.get("TWILIO_WHATSAPP_FROM", "")),
+                "mode": "whatsapp_business",
+            })
+            return
         if self.path == "/api/ai-usage":
             self._send_json(summarize_usage(load_usage_events()))
+            return
+        if self.path == "/api/whatsapp-conversations":
+            self._send_json(load_conversations())
             return
         super().do_GET()
 
@@ -58,10 +94,27 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
         raw = self.rfile.read(length).decode("utf-8")
         return json.loads(raw or "{}")
 
-    def _send_json(self, data):
+    def _read_form(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length).decode("utf-8")
+        parsed = urllib.parse.parse_qs(raw, keep_blank_values=True)
+        return {key: values[-1] if values else "" for key, values in parsed.items()}
+
+    def _send_json(self, data, status=200):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_twiml(self, message):
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f"<Response><Message>{html.escape(message)}</Message></Response>"
+        ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/xml; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -69,6 +122,308 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
 
 class MissingApiKey(Exception):
     pass
+
+
+class MissingTwilioConfig(Exception):
+    pass
+
+
+def twilio_configured():
+    return all(os.environ.get(name) for name in [
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_WHATSAPP_FROM",
+    ])
+
+
+def send_whatsapp_with_twilio(payload):
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
+    from_number = normalize_twilio_whatsapp(os.environ.get("TWILIO_WHATSAPP_FROM", ""))
+    to_number = normalize_twilio_whatsapp(payload.get("to", ""))
+    message = str(payload.get("message", "")).strip()
+
+    if not all([account_sid, auth_token, from_number]):
+        raise MissingTwilioConfig("Twilio ist noch nicht vollstaendig konfiguriert.")
+    if not to_number:
+        raise ValueError("Empfaenger-WhatsApp-Nummer fehlt.")
+    if not message:
+        raise ValueError("Nachrichtentext fehlt.")
+
+    form_data = urllib.parse.urlencode({
+        "From": from_number,
+        "To": to_number,
+        "Body": message,
+    }).encode("utf-8")
+    token = base64.b64encode(f"{account_sid}:{auth_token}".encode("utf-8")).decode("ascii")
+    request = urllib.request.Request(
+        f"{TWILIO_API_BASE}/Accounts/{account_sid}/Messages.json",
+        data=form_data,
+        headers={
+            "Authorization": f"Basic {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(read_http_error(exc))
+
+    return {
+        "sent": True,
+        "sid": data.get("sid"),
+        "status": data.get("status"),
+        "to": mask_phone(to_number),
+        "from": mask_phone(from_number),
+    }
+
+
+def normalize_twilio_whatsapp(value):
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    if cleaned.startswith("whatsapp:"):
+        return cleaned
+    number = re.sub(r"[^\d+]", "", cleaned)
+    if not number.startswith("+"):
+        number = f"+{number}"
+    return f"whatsapp:{number}"
+
+
+def mask_phone(value):
+    digits = re.sub(r"\D", "", str(value or ""))
+    if len(digits) < 4:
+        return ""
+    return f"***{digits[-4:]}"
+
+
+def read_http_error(exc):
+    try:
+        return exc.read().decode("utf-8")
+    except Exception:
+        return ""
+
+
+def safe_twilio_error(exc):
+    message = str(exc)
+    if isinstance(exc, MissingTwilioConfig):
+        return "Twilio ist noch nicht konfiguriert. Setze TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN und TWILIO_WHATSAPP_FROM im Server."
+    if "not a valid whatsapp sender" in message.lower() or "from" in message.lower():
+        return "Twilio WhatsApp-Absender ist nicht korrekt freigeschaltet oder falsch eingetragen."
+    if "not a valid phone number" in message.lower() or "to" in message.lower():
+        return "Empfaenger-Nummer ist ungueltig. Nutze internationales Format, z. B. +491701234567."
+    if "authenticate" in message.lower() or "account_sid" in message.lower():
+        return "Twilio Login-Daten sind ungueltig. Account SID und Auth Token pruefen."
+    return "WhatsApp konnte nicht gesendet werden. Bitte Twilio-Konfiguration und Server-Logs pruefen."
+
+
+def handle_whatsapp_inbound(form):
+    from_number = normalize_twilio_whatsapp(form.get("From", ""))
+    to_number = normalize_twilio_whatsapp(form.get("To", ""))
+    body = str(form.get("Body", "")).strip()
+    media = extract_twilio_media(form)
+    conversation = append_conversation_event(from_number, {
+        "direction": "inbound",
+        "from": from_number,
+        "to": to_number,
+        "body": body,
+        "media": media,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
+
+    try:
+        result = continue_whatsapp_intake_with_openai(from_number, conversation)
+    except MissingApiKey:
+        result = continue_whatsapp_intake_rule_based(from_number, conversation)
+    except Exception as exc:
+        result = continue_whatsapp_intake_rule_based(from_number, conversation)
+        result["warning"] = str(exc)
+
+    append_conversation_event(from_number, {
+        "direction": "outbound",
+        "from": to_number,
+        "to": from_number,
+        "body": result["reply"],
+        "candidate": result.get("candidate", {}),
+        "missingFields": result.get("missingFields", []),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
+    return result
+
+
+def continue_whatsapp_intake_with_openai(phone, conversation):
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise MissingApiKey()
+
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "reply": {"type": "string"},
+            "candidate": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "role": {"type": "string"},
+                    "location": {"type": "string"},
+                    "experience": {"type": "string"},
+                    "availability": {"type": "string"},
+                    "salary": {"type": "string"},
+                    "skills": {"type": "array", "items": {"type": "string"}},
+                    "documents": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["name", "role", "location", "experience", "availability", "salary", "skills", "documents"],
+            },
+            "missingFields": {"type": "array", "items": {"type": "string"}},
+            "readyForRecruiter": {"type": "boolean"},
+        },
+        "required": ["reply", "candidate", "missingFields", "readyForRecruiter"],
+    }
+    messages = conversation[-12:]
+    body = {
+        "model": MODEL,
+        "instructions": (
+            "Du bist ein WhatsApp-Recruiting-Bot. Fuehre ein kurzes, freundliches Intake-Gespraech. "
+            "Sammle nacheinander: Name, Zielrolle, Ort, Berufserfahrung, Skills, Verfuegbarkeit, Gehaltswunsch, "
+            "Lebenslauf, Zertifikate und Ausweis. Wenn Medien gesendet wurden, werte sie als Dokumente und frage "
+            "nur noch nach fehlenden Dokumenten. Stelle immer nur 1 bis 2 konkrete Rueckfragen pro Antwort. "
+            "Wenn alle Kerndaten vorhanden sind, bestaetige die Uebergabe an den Recruiter. "
+            "Antworte auf Deutsch und nur im JSON-Schema."
+        ),
+        "input": json.dumps({"phone": phone, "conversation": messages}, ensure_ascii=False),
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "whatsapp_recruiting_intake",
+                "schema": schema,
+                "strict": True,
+            }
+        },
+    }
+    request = urllib.request.Request(
+        OPENAI_API_URL,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(safe_openai_error(exc))
+
+    text = data.get("output_text") or extract_output_text(data)
+    result = json.loads(text)
+    result["aiEnabled"] = True
+    result["model"] = MODEL
+    result["usage"] = normalize_openai_usage(data.get("usage", {}))
+    result["score"] = 100 if result.get("readyForRecruiter") else max(20, 100 - (len(result.get("missingFields", [])) * 10))
+    log_usage_event({"organizationId": "demo-org", "userId": phone}, result, ai_enabled=True)
+    return result
+
+
+def continue_whatsapp_intake_rule_based(phone, conversation):
+    inbound_text = "\n".join(event.get("body", "") for event in conversation if event.get("direction") == "inbound")
+    documents = infer_documents_from_conversation(conversation)
+    candidate = {
+        "name": "",
+        "role": extract_match(inbound_text, r"(fahrer|pflege|sales|hr|lager|logistik|entwickler|manager)") or "",
+        "location": extract_match(inbound_text, r"(berlin|hamburg|muenchen|koeln|st\.?\s*georgen|stuttgart|frankfurt)") or "",
+        "experience": extract_match(inbound_text, r"(\d+\s*(jahr|jahre|jahren).{0,40})") or inbound_text[-180:],
+        "availability": extract_match(inbound_text, r"(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfuegbar|verfügbar|kuendigung|kündigung)") or "",
+        "salary": extract_match(inbound_text, r"(\d{2,3}[\.\s]?\d{3}|\d{3,5})\s*(eur|euro|brutto|netto)?") or "",
+        "skills": extract_skills("", inbound_text),
+        "documents": documents,
+    }
+    missing = []
+    if not candidate["experience"]:
+        missing.append("Berufserfahrung")
+    if not candidate["availability"]:
+        missing.append("Verfuegbarkeit")
+    if not candidate["salary"]:
+        missing.append("Gehaltswunsch")
+    missing.extend(DOCUMENT_LABELS[doc] for doc in REQUIRED_DOCUMENTS if doc not in documents)
+
+    if "Berufserfahrung" in missing:
+        reply = "Danke dir. Wie viele Jahre Erfahrung hast du genau und in welchen Aufgaben warst du taetig?"
+    elif "Verfuegbarkeit" in missing or "Gehaltswunsch" in missing:
+        reply = "Super, danke. Ab wann bist du verfuegbar und welche Gehaltsvorstellung hast du?"
+    elif any(label in missing for label in DOCUMENT_LABELS.values()):
+        reply = "Danke. Bitte sende mir jetzt noch deinen Lebenslauf, Zertifikate und einen Ausweis als Datei oder Foto hier in WhatsApp."
+    else:
+        reply = "Perfekt, ich habe die wichtigsten Daten und Dokumente erfasst. Ich gebe dein Profil jetzt an den Recruiter weiter."
+
+    return {
+        "reply": reply,
+        "candidate": candidate,
+        "missingFields": missing,
+        "readyForRecruiter": not missing,
+        "aiEnabled": False,
+    }
+
+
+def extract_twilio_media(form):
+    media = []
+    try:
+        count = int(form.get("NumMedia", "0") or 0)
+    except ValueError:
+        count = 0
+    for index in range(count):
+        media.append({
+            "url": form.get(f"MediaUrl{index}", ""),
+            "contentType": form.get(f"MediaContentType{index}", ""),
+        })
+    return media
+
+
+def infer_documents_from_conversation(conversation):
+    documents = set()
+    for event in conversation:
+        text = event.get("body", "").lower()
+        if "lebenslauf" in text or "cv" in text:
+            documents.add("cv")
+        if "zertifikat" in text or "schein" in text or "abschluss" in text:
+            documents.add("certificate")
+        if "ausweis" in text or "pass" in text or "id" in text:
+            documents.add("id")
+        for media in event.get("media", []):
+            content_type = media.get("contentType", "")
+            if "pdf" in content_type or "image" in content_type:
+                if "cv" not in documents:
+                    documents.add("cv")
+                elif "certificate" not in documents:
+                    documents.add("certificate")
+                else:
+                    documents.add("id")
+    return [doc for doc in REQUIRED_DOCUMENTS if doc in documents]
+
+
+def append_conversation_event(phone, event):
+    conversations = load_conversations()
+    key = phone or "unknown"
+    conversations.setdefault(key, [])
+    conversations[key].append(event)
+    conversations[key] = conversations[key][-80:]
+    CONVERSATION_LOG.write_text(json.dumps(conversations, ensure_ascii=False, indent=2), encoding="utf-8")
+    return conversations[key]
+
+
+def load_conversations():
+    if not CONVERSATION_LOG.exists():
+        return {}
+    try:
+        return json.loads(CONVERSATION_LOG.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
 
 
 def evaluate_with_openai(payload):
