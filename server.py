@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parent
 OPENAI_API_URL = "https://api.openai.com/v1/responses"
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
 TWILIO_API_BASE = "https://api.twilio.com/2010-04-01"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+DEFAULT_ORGANIZATION_ID = os.environ.get("DEFAULT_ORGANIZATION_ID", "")
 USAGE_LOG = ROOT / "ai_usage_events.json"
 CONVERSATION_LOG = ROOT / "whatsapp_conversations.json"
 MEMORY_LOG = ROOT / "bot_memory.json"
@@ -495,6 +498,7 @@ def append_conversation_event(phone, event):
     conversations[key].append(event)
     conversations[key] = conversations[key][-80:]
     CONVERSATION_LOG.write_text(json.dumps(conversations, ensure_ascii=False, indent=2), encoding="utf-8")
+    sync_message_to_supabase(key, event)
     return conversations[key]
 
 
@@ -540,6 +544,7 @@ def update_memory_from_intake(customer_key, result):
     current["lastUpdated"] = datetime.now(timezone.utc).isoformat()
     memory[customer_key] = current
     write_json(MEMORY_LOG, memory)
+    sync_memory_to_supabase(customer_key, current, result)
 
 
 def save_memory_entry(payload):
@@ -559,6 +564,7 @@ def save_memory_entry(payload):
     current["lastUpdated"] = datetime.now(timezone.utc).isoformat()
     memory[customer_key] = current
     write_json(MEMORY_LOG, memory)
+    sync_memory_to_supabase(customer_key, current, {"summary": note})
     return {"saved": True, "memory": current}
 
 
@@ -576,6 +582,7 @@ def save_training_document(payload):
     })
     training["documents"] = documents
     write_json(TRAINING_LOG, training)
+    sync_training_document_to_supabase(documents[-1])
     return {"saved": True, "documentId": document_id, "training": training}
 
 
@@ -584,6 +591,7 @@ def delete_training_document(payload):
     document_id = payload.get("id")
     training["documents"] = [item for item in training.get("documents", []) if item.get("id") != document_id]
     write_json(TRAINING_LOG, training)
+    delete_supabase_row("bot_training_documents", document_id)
     return {"deleted": True, "training": training}
 
 
@@ -601,6 +609,7 @@ def save_system_prompt(payload):
     })
     training["prompts"] = prompts
     write_json(TRAINING_LOG, training)
+    sync_system_prompt_to_supabase(prompts[-1])
     return {"saved": True, "promptId": prompt_id, "training": training}
 
 
@@ -609,6 +618,7 @@ def delete_system_prompt(payload):
     prompt_id = payload.get("id")
     training["prompts"] = [item for item in training.get("prompts", []) if item.get("id") != prompt_id]
     write_json(TRAINING_LOG, training)
+    delete_supabase_row("bot_system_prompts", prompt_id)
     return {"deleted": True, "training": training}
 
 
@@ -627,6 +637,7 @@ def save_personality(payload):
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     write_json(PERSONALITY_LOG, personality)
+    sync_personality_to_supabase(personality)
     return {"saved": True, "personality": personality}
 
 
@@ -664,6 +675,220 @@ def read_json(path, fallback):
 
 def write_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def supabase_enabled():
+    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and DEFAULT_ORGANIZATION_ID)
+
+
+def supabase_headers(extra=None):
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def supabase_request(method, table, payload=None, query=""):
+    if not supabase_enabled():
+        return None
+    url = f"{SUPABASE_URL}/rest/v1/{table}{query}"
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers=supabase_headers({"Prefer": "return=representation"}),
+        method=method,
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        raw = response.read().decode("utf-8")
+        return json.loads(raw) if raw else None
+
+
+def supabase_select_one(table, query):
+    result = supabase_request("GET", table, query=f"{query}&limit=1")
+    if isinstance(result, list) and result:
+        return result[0]
+    return None
+
+
+def sync_message_to_supabase(customer_key, event):
+    if not supabase_enabled():
+        return
+    try:
+        customer = get_or_create_supabase_customer(customer_key, event)
+        conversation = get_or_create_supabase_conversation(customer)
+        media = event.get("media", [])
+        message = {
+            "organization_id": DEFAULT_ORGANIZATION_ID,
+            "conversation_id": conversation["id"],
+            "customer_id": customer["id"],
+            "direction": event.get("direction", "inbound"),
+            "sender_type": "customer" if event.get("direction") == "inbound" else "bot",
+            "body": event.get("body", ""),
+            "media": media if isinstance(media, list) else [],
+            "provider": "twilio",
+            "metadata": {
+                "from": event.get("from", ""),
+                "to": event.get("to", ""),
+                "candidate": event.get("candidate", {}),
+                "missingFields": event.get("missingFields", []),
+            },
+        }
+        supabase_request("POST", "bot_messages", [message])
+        update_payload = {
+            "last_message_at": event.get("createdAt") or datetime.now(timezone.utc).isoformat(),
+            "summary": event.get("body", "")[:500],
+        }
+        supabase_request("PATCH", "bot_conversations", update_payload, query=f"?id=eq.{conversation['id']}")
+    except Exception as exc:
+        print(f"Supabase Message Sync fehlgeschlagen: {exc}")
+
+
+def get_or_create_supabase_customer(customer_key, event):
+    phone = customer_key or event.get("from", "")
+    encoded_phone = urllib.parse.quote(phone, safe="")
+    existing = supabase_select_one(
+        "bot_customers",
+        f"?organization_id=eq.{DEFAULT_ORGANIZATION_ID}&phone=eq.{encoded_phone}&select=id,organization_id,phone,display_name",
+    )
+    if existing:
+        return existing
+    payload = [{
+        "organization_id": DEFAULT_ORGANIZATION_ID,
+        "phone": phone,
+        "display_name": phone.replace("whatsapp:", ""),
+        "source": "whatsapp",
+        "last_contact_at": event.get("createdAt") or datetime.now(timezone.utc).isoformat(),
+        "profile": {},
+    }]
+    created = supabase_request("POST", "bot_customers", payload)
+    return created[0]
+
+
+def get_or_create_supabase_conversation(customer):
+    existing = supabase_select_one(
+        "bot_conversations",
+        f"?organization_id=eq.{DEFAULT_ORGANIZATION_ID}&customer_id=eq.{customer['id']}&status=in.(open,waiting)&select=id,customer_id,organization_id,status",
+    )
+    if existing:
+        return existing
+    payload = [{
+        "organization_id": DEFAULT_ORGANIZATION_ID,
+        "customer_id": customer["id"],
+        "channel": "whatsapp",
+        "status": "open",
+        "subject": "WhatsApp Intake",
+        "last_message_at": datetime.now(timezone.utc).isoformat(),
+    }]
+    created = supabase_request("POST", "bot_conversations", payload)
+    return created[0]
+
+
+def sync_memory_to_supabase(customer_key, current, result):
+    if not supabase_enabled():
+        return
+    try:
+        customer = get_or_create_supabase_customer(customer_key, {
+            "from": customer_key,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        })
+        profile = current.get("profile", {})
+        if profile:
+            supabase_request("PATCH", "bot_customers", {"profile": profile}, query=f"?id=eq.{customer['id']}")
+        summary = result.get("summary") or result.get("reply") or ""
+        if summary:
+            payload = [{
+                "organization_id": DEFAULT_ORGANIZATION_ID,
+                "customer_id": customer["id"],
+                "memory_type": "note",
+                "title": "Bot-Zusammenfassung",
+                "content": summary[:2000],
+                "importance": 5,
+                "metadata": {"source": "bot"},
+            }]
+            supabase_request("POST", "bot_memory", payload)
+    except Exception as exc:
+        print(f"Supabase Memory Sync fehlgeschlagen: {exc}")
+
+
+def sync_training_document_to_supabase(document):
+    if not supabase_enabled():
+        return
+    try:
+        payload = [{
+            "organization_id": DEFAULT_ORGANIZATION_ID,
+            "title": document.get("title", "Dokument"),
+            "document_type": normalize_training_document_type(document.get("type", "text")),
+            "content": document.get("content", ""),
+            "active": bool(document.get("active", True)),
+            "priority": int(document.get("priority", 5) or 5),
+            "metadata": {"localId": document.get("id")},
+        }]
+        supabase_request("POST", "bot_training_documents", payload)
+    except Exception as exc:
+        print(f"Supabase Training Sync fehlgeschlagen: {exc}")
+
+
+def sync_system_prompt_to_supabase(prompt):
+    if not supabase_enabled():
+        return
+    try:
+        payload = [{
+            "organization_id": DEFAULT_ORGANIZATION_ID,
+            "title": prompt.get("title", "System-Prompt"),
+            "content": prompt.get("content", ""),
+            "active": bool(prompt.get("active", True)),
+            "priority": int(prompt.get("priority", 5) or 5),
+        }]
+        supabase_request("POST", "bot_system_prompts", payload)
+    except Exception as exc:
+        print(f"Supabase Prompt Sync fehlgeschlagen: {exc}")
+
+
+def sync_personality_to_supabase(personality):
+    if not supabase_enabled():
+        return
+    try:
+        payload = [{
+            "organization_id": DEFAULT_ORGANIZATION_ID,
+            "name": "Standard",
+            "active": True,
+            "communication_style": personality.get("communicationStyle", "professionell und freundlich"),
+            "friendliness": personality.get("friendliness", "hoch"),
+            "politeness": personality.get("politeness", "hoch"),
+            "humor": personality.get("humor", "dezent"),
+            "professionalism": personality.get("professionalism", "hoch"),
+            "sales_orientation": personality.get("salesOrientation", "beratend"),
+            "answer_length": personality.get("answerLength", "kurz bis mittel"),
+            "tone": personality.get("tone", "Deutsch, respektvoll, nahbar"),
+            "emoji_usage": personality.get("emojiUsage", "sparsam"),
+            "difficult_situations": personality.get("difficultSituations", ""),
+        }]
+        supabase_request("POST", "bot_personality_profiles", payload)
+    except Exception as exc:
+        print(f"Supabase Personality Sync fehlgeschlagen: {exc}")
+
+
+def delete_supabase_row(table, local_id):
+    if not supabase_enabled() or not local_id:
+        return
+    try:
+        encoded = urllib.parse.quote(local_id, safe="")
+        supabase_request("DELETE", table, query=f"?metadata->>localId=eq.{encoded}")
+    except Exception as exc:
+        print(f"Supabase Delete Sync fehlgeschlagen: {exc}")
+
+
+def normalize_training_document_type(value):
+    value = str(value or "text").lower()
+    if value in {"text", "markdown", "pdf", "word", "website"}:
+        return value
+    return "other"
 
 
 def evaluate_with_openai(payload):

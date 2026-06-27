@@ -75,9 +75,12 @@ OPENAI_MODEL = gpt-4.1-mini
 TWILIO_ACCOUNT_SID = AC...
 TWILIO_AUTH_TOKEN = dein_twilio_auth_token
 TWILIO_WHATSAPP_FROM = whatsapp:+14155238886
+SUPABASE_URL = https://dein-projekt.supabase.co
+SUPABASE_SERVICE_ROLE_KEY = dein_service_role_key
+DEFAULT_ORGANIZATION_ID = deine_organization_uuid
 ```
 
-Der OpenAI-Key und die Twilio-Daten dürfen nicht in GitHub liegen.
+Der OpenAI-Key, die Twilio-Daten und der Supabase Service Role Key dürfen nicht in GitHub liegen.
 
 Für den ersten Twilio-Test ist `whatsapp:+14155238886` meist die Sandbox-Absendernummer. Für Produktion nutzt du später deine freigeschaltete WhatsApp Business Nummer.
 
@@ -121,15 +124,19 @@ Method: HTTP POST
 
 Lokal funktioniert `http://127.0.0.1:8000/api/whatsapp/inbound` nur für Tests auf deinem Rechner. Twilio selbst kann `127.0.0.1` nicht erreichen. Für echte WhatsApp-Antworten brauchst du deine Render-URL oder einen Tunnel wie ngrok.
 
-## 7. Memory, Chat-Verläufe und Training
+## 7. Supabase Bot-Datenbank
 
-RecruitOS speichert im MVP serverseitig:
+Führe im Supabase SQL Editor aus:
 
 ```text
-whatsapp_conversations.json
-bot_memory.json
-bot_training.json
-bot_personality.json
+supabase-auth-schema.sql
+supabase-bot-schema.sql
 ```
 
-Diese Dateien gehören nicht in GitHub. Für echte Produktionsnutzung mit dauerhafter Speicherung nach Deploys sollten diese Daten in Supabase-Tabellen verschoben werden.
+Danach liegen Bot-Kunden, Chatverläufe, Nachrichten, Memory, Training und Bot-Persönlichkeit in Supabase. Die alten lokalen JSON-Dateien sind dann nur noch Fallback für lokale Entwicklung und gehören nicht in GitHub.
+
+Die genaue Supabase-Einrichtung steht in:
+
+```text
+SUPABASE_BOT_SETUP.md
+```

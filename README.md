@@ -35,6 +35,38 @@ window.RECRUITOS_SUPABASE = {
 
 Der `service_role` oder `sb_secret` Key gehört niemals in diese Datei. Er bleibt nur als Backend-Secret.
 
+## Supabase Bot-Datenbank
+
+Führe im Supabase SQL Editor zuerst aus:
+
+```text
+supabase-auth-schema.sql
+```
+
+Danach führst du aus:
+
+```text
+supabase-bot-schema.sql
+```
+
+Damit entstehen Tabellen für Bot-Kunden, Chatverläufe, Nachrichten, Memory, Trainingsdokumente, System-Prompts und Bot-Persönlichkeit.
+
+Die genaue Schrittfolge steht in:
+
+```text
+SUPABASE_BOT_SETUP.md
+```
+
+Für Render brauchst du serverseitig:
+
+```text
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+DEFAULT_ORGANIZATION_ID
+```
+
+Der Service Role Key darf niemals in `supabase-config.js`, `app.js` oder GitHub liegen.
+
 ## Enthaltene MVP-Funktionen
 
 - Bewerber-CRM mit Status und Skills
