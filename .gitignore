@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+server.log
+server.err.log
+ai_usage_events.json

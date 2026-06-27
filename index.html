@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RecruitOS MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section class="auth-screen" id="auth-screen">
+      <div class="auth-brand">
+        <span class="brand-mark">R</span>
+        <div>
+          <strong>RecruitOS</strong>
+          <small>KI-Recruiting Plattform</small>
+        </div>
+      </div>
+
+      <div class="auth-layout">
+        <section class="auth-copy">
+          <p class="eyebrow">SaaS Login</p>
+          <h1>Ein sicherer Zugang fuer Agenturen, Recruiter und Kunden.</h1>
+          <p>Supabase Auth verwaltet Login, Sessions und Passwortsicherheit. RecruitOS speichert daneben Rollen, Agenturen und Zugriffsrechte.</p>
+          <div class="auth-feature-grid">
+            <article><strong>Mandantenfaehig</strong><span>Agenturen bleiben sauber getrennt.</span></article>
+            <article><strong>Rollenbasiert</strong><span>Owner, Admin, Recruiter, Kunde.</span></article>
+            <article><strong>Bereit fuer Supabase</strong><span>Anon Key im Frontend, Secret nur Backend.</span></article>
+          </div>
+        </section>
+
+        <section class="auth-panel">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-auth-mode="login" type="button">Login</button>
+            <button class="auth-tab" data-auth-mode="signup" type="button">Registrieren</button>
+          </div>
+
+          <form id="login-form" class="auth-form">
+            <h2>Anmelden</h2>
+            <label>E-Mail<input name="email" type="email" required placeholder="recruiter@agentur.de" /></label>
+            <label>Passwort<input name="password" type="password" required placeholder="Mindestens 6 Zeichen" /></label>
+            <button class="primary-action" type="submit">Einloggen</button>
+          </form>
+
+          <form id="signup-form" class="auth-form hidden">
+            <h2>Agentur-Zugang erstellen</h2>
+            <label>Name<input name="fullName" required placeholder="Lea Wagner" /></label>
+            <label>Agentur<input name="organization" required placeholder="Nova Recruiting GmbH" /></label>
+            <label>E-Mail<input name="email" type="email" required placeholder="owner@agentur.de" /></label>
+            <label>Passwort<input name="password" type="password" required placeholder="Mindestens 6 Zeichen" /></label>
+            <button class="primary-action" type="submit">Account erstellen</button>
+          </form>
+
+          <button class="secondary-action" id="demo-login" type="button">Demo-Login nutzen</button>
+          <p class="auth-message" id="auth-message"></p>
+        </section>
+      </div>
+    </section>
+
+    <div class="app-shell hidden" id="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">R</span>
+          <div>
+            <strong>RecruitOS</strong>
+            <small>Agency CRM</small>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" data-view="candidates">Bewerber</button>
+          <button class="nav-item" data-view="jobs">Stellen</button>
+          <button class="nav-item" data-view="pipeline">Pipeline</button>
+          <button class="nav-item" data-view="bots">KI-Bots</button>
+          <button class="nav-item" data-view="assistant">KI-Assistent</button>
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Strategisches SaaS-MVP</p>
+            <h1 id="view-title">Dashboard</h1>
+          </div>
+          <div class="topbar-actions">
+            <div class="user-chip" id="user-chip">Demo User</div>
+            <button class="secondary-action" id="logout-button" type="button">Logout</button>
+            <button class="primary-action" id="seed-demo">Demo-Daten laden</button>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboard-view">
+          <div class="metric-grid">
+            <article class="metric">
+              <span>Bewerber</span>
+              <strong id="candidate-count">0</strong>
+            </article>
+            <article class="metric">
+              <span>Aktive Stellen</span>
+              <strong id="job-count">0</strong>
+            </article>
+            <article class="metric">
+              <span>Matchings</span>
+              <strong id="match-count">0</strong>
+            </article>
+            <article class="metric">
+              <span>Ø Score</span>
+              <strong id="avg-score">0%</strong>
+            </article>
+          </div>
+
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Beste Matches</h2>
+                <span>automatisch berechnet</span>
+              </div>
+              <div id="top-matches" class="match-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Workflow</h2>
+                <span>vom Erstkontakt bis Vermittlung</span>
+              </div>
+              <div class="workflow-line">
+                <span>Erstkontakt</span>
+                <span>Datenerfassung</span>
+                <span>Upload</span>
+                <span>Qualifizierung</span>
+                <span>Review</span>
+                <span>Vermittlung</span>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="candidates-view">
+          <div class="candidate-workspace">
+            <form id="candidate-form" class="panel form-panel">
+              <h2>Bewerber anlegen</h2>
+              <label>Name<input name="name" required placeholder="z. B. Lea Wagner" /></label>
+              <label>Rolle<input name="role" required placeholder="z. B. Pflegefachkraft" /></label>
+              <label>Ort<input name="location" required placeholder="z. B. Berlin" /></label>
+              <label>E-Mail<input name="email" type="email" placeholder="lea@example.com" /></label>
+              <label>Telefon<input name="phone" placeholder="+49 170 1234567" /></label>
+              <label>Erfahrung<input name="experience" placeholder="z. B. 5 Jahre B2B-Vertrieb" /></label>
+              <label>Verfuegbarkeit<input name="availability" placeholder="z. B. sofort, 20 Std./Woche" /></label>
+              <label>Gehaltswunsch<input name="salary" placeholder="z. B. 55.000 EUR brutto" /></label>
+              <label>Skills<textarea name="skills" required placeholder="Kommagetrennt: CRM, Vertrieb, Deutsch"></textarea></label>
+              <label>Dokumente
+                <select name="documents">
+                  <option value="cv,certificate,id">Lebenslauf, Zertifikate, Ausweis</option>
+                  <option value="cv,certificate">Lebenslauf, Zertifikate</option>
+                  <option value="cv">Nur Lebenslauf</option>
+                  <option value="">Noch keine Dokumente</option>
+                </select>
+              </label>
+              <label>Notizen<textarea name="notes" placeholder="Bot-Zusammenfassung, Kundenhinweise, offene Fragen"></textarea></label>
+              <label>Status
+                <select name="status">
+                  <option>Erstkontakt</option>
+                  <option>Datenerfassung</option>
+                  <option>Dokumentenupload</option>
+                  <option>Qualifizierung</option>
+                  <option>Recruiter Review</option>
+                  <option>Vermittlung</option>
+                </select>
+              </label>
+              <button class="primary-action" type="submit">Bewerber speichern</button>
+            </form>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Bewerberprofile</h2>
+                <span id="candidate-hint">0 Eintraege</span>
+              </div>
+              <div id="candidate-list" class="entity-list profile-list"></div>
+            </section>
+            <section class="panel profile-panel">
+              <div class="panel-header">
+                <h2>Profil</h2>
+                <span>alle Informationen</span>
+              </div>
+              <div id="candidate-profile" class="candidate-profile empty">Waehle einen Bewerber aus.</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="jobs-view">
+          <div class="form-grid">
+            <form id="job-form" class="panel form-panel">
+              <h2>Stelle anlegen</h2>
+              <label>Titel<input name="title" required placeholder="z. B. Sales Manager" /></label>
+              <label>Kunde<input name="client" required placeholder="z. B. NovaCare GmbH" /></label>
+              <label>Ort<input name="location" required placeholder="z. B. Hamburg" /></label>
+              <label>Anforderungen<textarea name="requirements" required placeholder="Kommagetrennt: Vertrieb, CRM, B2B"></textarea></label>
+              <label>Priorität
+                <select name="priority">
+                  <option>Hoch</option>
+                  <option>Mittel</option>
+                  <option>Niedrig</option>
+                </select>
+              </label>
+              <button class="primary-action" type="submit">Stelle speichern</button>
+            </form>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Kundenbedarf</h2>
+                <span id="job-hint">0 Einträge</span>
+              </div>
+              <div id="job-list" class="entity-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="pipeline-view">
+          <div id="pipeline-board" class="pipeline-board"></div>
+        </section>
+
+        <section class="view" id="bots-view">
+          <div class="ai-ops-grid">
+            <article class="metric">
+              <span>KI-Modus</span>
+              <strong id="ai-mode">Pruefen</strong>
+            </article>
+            <article class="metric">
+              <span>Modell</span>
+              <strong id="ai-model">-</strong>
+            </article>
+            <article class="metric">
+              <span>Bot-Aktionen</span>
+              <strong id="ai-actions">0</strong>
+            </article>
+            <article class="metric">
+              <span>Tokens</span>
+              <strong id="ai-tokens">0</strong>
+            </article>
+          </div>
+
+          <div class="bot-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Erstkontakt-Bot</h2>
+                <span>automatisierte Bewerberaufnahme</span>
+              </div>
+              <form id="bot-intake-form" class="bot-form">
+                <label>Kontaktkanal
+                  <select name="channel">
+                    <option>WhatsApp</option>
+                    <option>Website Chat</option>
+                    <option>E-Mail</option>
+                    <option>LinkedIn</option>
+                  </select>
+                </label>
+                <label>Name<input name="name" required placeholder="z. B. Sofia Meyer" /></label>
+                <label>WhatsApp / Telefon<input name="phone" required placeholder="+49 170 1234567" /></label>
+                <label>Gewuenschte Rolle<input name="role" required placeholder="z. B. Pflegefachkraft" /></label>
+                <label>Ort<input name="location" required placeholder="z. B. Koeln" /></label>
+                <label>Kontaktstatus
+                  <select name="contactStatus">
+                    <option value="new">Noch nicht kontaktiert</option>
+                    <option value="message_sent">WhatsApp Nachricht gesendet</option>
+                    <option value="answered">Bewerber hat geantwortet</option>
+                    <option value="qualified">Gespräch qualifiziert</option>
+                  </select>
+                </label>
+                <label class="checkbox-label">
+                  <input name="whatsappOptIn" type="checkbox" checked />
+                  WhatsApp-Kontakt erlaubt
+                </label>
+                <label>Antworten aus dem Bot-Gespraech<textarea name="answers" placeholder="Leer lassen, wenn noch kein WhatsApp-Gespraech stattgefunden hat."></textarea></label>
+                <label>Dokumente
+                  <select name="documents">
+                    <option value="cv,certificate,id">Lebenslauf, Zertifikate, Ausweis</option>
+                    <option value="cv,certificate">Lebenslauf, Zertifikate</option>
+                    <option value="cv">Nur Lebenslauf</option>
+                    <option value="">Noch keine Dokumente</option>
+                  </select>
+                </label>
+                <button class="primary-action" type="submit">Bot-Auswertung starten</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Bot-Auswertung</h2>
+                <span id="bot-score-label">wartet auf Eingabe</span>
+              </div>
+              <div id="bot-result" class="bot-result empty">Noch kein Bot-Intake verarbeitet.</div>
+            </section>
+          </div>
+
+          <section class="panel bot-wide-panel">
+            <div class="panel-header">
+              <h2>Bot-Automationen</h2>
+              <span>was spaeter im Backend ausgefuehrt wird</span>
+            </div>
+            <div class="automation-grid">
+              <article>
+                <strong>1. Erstkontakt</strong>
+                <p>Begruesst Bewerber oder Kunden, klaert Anliegen und startet den passenden Fragebogen.</p>
+              </article>
+              <article>
+                <strong>2. Datenstrukturierung</strong>
+                <p>Extrahiert Rolle, Ort, Erfahrung, Verfuegbarkeit, Gehalt und Skills in CRM-Felder.</p>
+              </article>
+              <article>
+                <strong>3. Dokumentencheck</strong>
+                <p>Prueft Lebenslauf, Zertifikate und Pflichtdokumente auf Vollstaendigkeit.</p>
+              </article>
+              <article>
+                <strong>4. Bewertung</strong>
+                <p>Erstellt Qualifizierungs-Score, Risiken, offene Fragen und naechste Handlung.</p>
+              </article>
+              <article>
+                <strong>5. CRM-Uebergabe</strong>
+                <p>Legt Bewerber automatisch an und dokumentiert alle Bot-Ergebnisse.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel bot-wide-panel">
+            <div class="panel-header">
+              <h2>KI-Nutzung</h2>
+              <span>Abrechnungsbasis pro Agentur</span>
+            </div>
+            <div id="ai-usage-list" class="usage-list empty">Noch keine KI-Nutzung erfasst.</div>
+          </section>
+        </section>
+
+        <section class="view" id="assistant-view">
+          <div class="assistant-layout">
+            <section class="panel">
+              <h2>KI-Chatbot Simulation</h2>
+              <p class="muted">Der Assistent erzeugt strukturierte Recruiting-Antworten. Im nächsten Schritt wird hier die echte OpenAI API angebunden.</p>
+              <div id="chat-log" class="chat-log"></div>
+              <form id="chat-form" class="chat-form">
+                <input name="message" placeholder="Frage z. B. Welche Kandidaten passen zu Sales Manager?" required />
+                <button class="primary-action" type="submit">Senden</button>
+              </form>
+            </section>
+            <section class="panel">
+              <h2>Integrationsplan</h2>
+              <ul class="roadmap">
+                <li>Mandantenfähiges CRM mit Rollenrechten</li>
+                <li>Dokumentenupload mit CV-Parsing</li>
+                <li>LLM-gestützte Qualifizierung per Chat</li>
+                <li>Matching Engine mit Score-Erklärung</li>
+                <li>Automationen für Follow-ups und Kundenupdates</li>
+              </ul>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
