@@ -1,4 +1,4 @@
-# Render Deployment
+﻿# Render Deployment
 
 ## 1. GitHub Repo erstellen
 
@@ -49,7 +49,7 @@ In Render:
 New -> Web Service -> Public Git Repository
 ```
 
-Dann GitHub Repo URL einfuegen:
+Dann GitHub Repo URL einfügen:
 
 ```text
 https://github.com/DEIN_USERNAME/recruitos
@@ -77,9 +77,9 @@ TWILIO_AUTH_TOKEN = dein_twilio_auth_token
 TWILIO_WHATSAPP_FROM = whatsapp:+14155238886
 ```
 
-Der OpenAI-Key und die Twilio-Daten duerfen nicht in GitHub liegen.
+Der OpenAI-Key und die Twilio-Daten dürfen nicht in GitHub liegen.
 
-Fuer den ersten Twilio-Test ist `whatsapp:+14155238886` meist die Sandbox-Absendernummer. Fuer Produktion nutzt du spaeter deine freigeschaltete WhatsApp Business Nummer.
+Für den ersten Twilio-Test ist `whatsapp:+14155238886` meist die Sandbox-Absendernummer. Für Produktion nutzt du später deine freigeschaltete WhatsApp Business Nummer.
 
 ## 5. Test
 
@@ -119,9 +119,9 @@ https://deine-render-url.onrender.com/api/whatsapp/inbound
 Method: HTTP POST
 ```
 
-Lokal funktioniert `http://127.0.0.1:8000/api/whatsapp/inbound` nur fuer Tests auf deinem Rechner. Twilio selbst kann `127.0.0.1` nicht erreichen. Fuer echte WhatsApp-Antworten brauchst du deine Render-URL oder einen Tunnel wie ngrok.
+Lokal funktioniert `http://127.0.0.1:8000/api/whatsapp/inbound` nur für Tests auf deinem Rechner. Twilio selbst kann `127.0.0.1` nicht erreichen. Für echte WhatsApp-Antworten brauchst du deine Render-URL oder einen Tunnel wie ngrok.
 
-## 7. Memory, Chat-Verlaeufe und Training
+## 7. Memory, Chat-Verläufe und Training
 
 RecruitOS speichert im MVP serverseitig:
 
@@ -132,4 +132,4 @@ bot_training.json
 bot_personality.json
 ```
 
-Diese Dateien gehoeren nicht in GitHub. Fuer echte Produktionsnutzung mit dauerhafter Speicherung nach Deploys sollten diese Daten in Supabase-Tabellen verschoben werden.
+Diese Dateien gehören nicht in GitHub. Für echte Produktionsnutzung mit dauerhafter Speicherung nach Deploys sollten diese Daten in Supabase-Tabellen verschoben werden.

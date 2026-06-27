@@ -1,4 +1,4 @@
-const STORAGE_KEY = "recruitos-mvp-state";
+﻿const STORAGE_KEY = "recruitos-mvp-state";
 const AUTH_STORAGE_KEY = "recruitos-auth-session";
 const stages = [
   "Erstkontakt",
@@ -144,11 +144,11 @@ els.seedDemo.addEventListener("click", () => {
       location: "Berlin",
       email: "murat.kaya@example.com",
       phone: "+49 176 7788990",
-      experience: "8 Jahre stationaere Pflege und Dokumentation",
-      availability: "sofort verfuegbar",
+      experience: "8 Jahre stationäre Pflege und Dokumentation",
+      availability: "sofort verfügbar",
       salary: "3.800 EUR brutto",
       documents: ["cv", "certificate"],
-      notes: "Ausweis fehlt noch. Sehr gutes Matching fuer Klinikbedarf.",
+      notes: "Ausweis fehlt noch. Sehr gutes Matching für Klinikbedarf.",
       skills: ["Pflege", "Schichtplanung", "Dokumentation", "Deutsch"],
       status: "Recruiter Review",
     },
@@ -156,11 +156,11 @@ els.seedDemo.addEventListener("click", () => {
       id: createId(),
       name: "Nora Schmidt",
       role: "HR Generalist",
-      location: "Muenchen",
+      location: "München",
       email: "nora.schmidt@example.com",
       phone: "+49 151 3344556",
       experience: "4 Jahre Recruiting, Active Sourcing und Onboarding",
-      availability: "nach 4 Wochen Kuendigungsfrist",
+      availability: "nach 4 Wochen Kündigungsfrist",
       salary: "58.000 EUR brutto",
       documents: ["cv"],
       notes: "Bot soll Zertifikate und Arbeitszeugnisse nachfordern.",
@@ -305,7 +305,7 @@ els.botIntakeForm.addEventListener("submit", async (event) => {
   };
   els.botScoreLabel.textContent = "KI analysiert...";
   els.botResult.className = "bot-result empty";
-  els.botResult.textContent = "Der Bot prueft Antworten, Dokumente und Qualifikation.";
+  els.botResult.textContent = "Der Bot prüft Antworten, Dokumente und Qualifikation.";
   const intake = await runBotIntake(payload);
   renderBotResult(intake);
 });
@@ -319,7 +319,7 @@ function switchView(viewName) {
     jobs: "Stellen",
     pipeline: "Pipeline",
     bots: "KI-Bots",
-    history: "Chat-Verlaeufe",
+    history: "Chat-Verläufe",
     training: "Training",
     personality: "Bot-Profil",
     assistant: "KI-Assistent",
@@ -357,7 +357,7 @@ async function loginUser(email, password) {
     return;
   }
 
-  setAuthMessage("Login wird geprueft...");
+  setAuthMessage("Login wird geprüft...");
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     setAuthMessage(error.message, "error");
@@ -390,7 +390,7 @@ async function signupUser({ fullName, organization, email, password }) {
     return;
   }
   if (!data.session) {
-    setAuthMessage("Account erstellt. Bitte bestaetige deine E-Mail und logge dich danach ein.", "success");
+    setAuthMessage("Account erstellt. Bitte bestätige deine E-Mail und logge dich danach ein.", "success");
     switchAuthMode("login");
     return;
   }
@@ -410,7 +410,7 @@ function showApp() {
 function showAuth() {
   els.appShell.classList.add("hidden");
   els.authScreen.classList.remove("hidden");
-  setAuthMessage(supabaseClient ? "" : "Demo-Modus aktiv: Fuer echtes Login URL und anon key in supabase-config.js eintragen.", "warning");
+  setAuthMessage(supabaseClient ? "" : "Demo-Modus aktiv: Für echtes Login URL und anon key in supabase-config.js eintragen.", "warning");
 }
 
 function setAuthMessage(message, type = "") {
@@ -459,7 +459,7 @@ function renderMetrics() {
 }
 
 function renderCandidates() {
-  els.candidateHint.textContent = `${state.candidates.length} Eintraege`;
+  els.candidateHint.textContent = `${state.candidates.length} Einträge`;
   if (!selectedCandidateId || !state.candidates.some((candidate) => candidate.id === selectedCandidateId)) {
     selectedCandidateId = state.candidates[0]?.id || null;
   }
@@ -476,7 +476,7 @@ function renderCandidates() {
 }
 
 function renderJobs() {
-  els.jobHint.textContent = `${state.jobs.length} Eintraege`;
+  els.jobHint.textContent = `${state.jobs.length} Einträge`;
   els.jobList.innerHTML = state.jobs.length
     ? state.jobs.map(jobCard).join("")
     : `<div class="empty">Noch keine Stellen erfasst.</div>`;
@@ -535,7 +535,7 @@ function renderBotResult(intake) {
         ${intake.phone ? `
           <div class="whatsapp-actions">
             <button class="secondary-action" id="send-whatsapp-from-bot" type="button">Per Twilio senden</button>
-            <a href="${createWhatsAppLink(intake.phone, intake.whatsappMessage)}" target="_blank" rel="noreferrer">In WhatsApp oeffnen</a>
+            <a href="${createWhatsAppLink(intake.phone, intake.whatsappMessage)}" target="_blank" rel="noreferrer">In WhatsApp öffnen</a>
           </div>
         ` : ""}
       </div>
@@ -552,11 +552,11 @@ function renderBotResult(intake) {
       `).join("")}
     </div>
     <div class="next-action">
-      <strong>Naechste Aktion</strong>
+      <strong>Nächste Aktion</strong>
       <p>${escapeHtml(intake.nextAction)}</p>
     </div>
     ${intake.warning ? `<div class="api-warning">${escapeHtml(safeWarning(intake.warning))}</div>` : ""}
-    <button class="primary-action" id="create-candidate-from-bot" type="button">Ins Bewerber-CRM uebernehmen</button>
+    <button class="primary-action" id="create-candidate-from-bot" type="button">Ins Bewerber-CRM übernehmen</button>
   `;
 
   document.querySelector("#create-candidate-from-bot").addEventListener("click", () => {
@@ -693,7 +693,7 @@ function renderHistory() {
     els.historyList.className = "history-list empty";
     els.historyList.textContent = "Keine passenden Chats gefunden.";
     els.historyDetail.className = "history-detail empty";
-    els.historyDetail.textContent = "Waehle einen Chat aus.";
+    els.historyDetail.textContent = "Wähle einen Chat aus.";
     return;
   }
 
@@ -730,7 +730,7 @@ function renderHistoryDetail() {
   const memory = botData.memory?.[selectedConversationKey] || {};
   if (!events.length) {
     els.historyDetail.className = "history-detail empty";
-    els.historyDetail.textContent = "Waehle einen Chat aus.";
+    els.historyDetail.textContent = "Wähle einen Chat aus.";
     return;
   }
   els.historyDetail.className = "history-detail";
@@ -767,7 +767,7 @@ function renderTraining() {
           <span>${escapeHtml(document.type)} - ${document.active ? "aktiv" : "inaktiv"} - ${escapeHtml(formatDateTime(document.updatedAt))}</span>
           <p>${escapeHtml(String(document.content || "").slice(0, 180))}</p>
         </div>
-        <button class="secondary-action" data-delete-document="${escapeHtml(document.id)}" type="button">Loeschen</button>
+        <button class="secondary-action" data-delete-document="${escapeHtml(document.id)}" type="button">Löschen</button>
       </article>
     `).join("")
     : "Noch keine Trainingsdokumente.";
@@ -778,10 +778,10 @@ function renderTraining() {
       <article class="training-item">
         <div>
           <strong>${escapeHtml(prompt.title)}</strong>
-          <span>Prioritaet ${escapeHtml(prompt.priority)} - ${prompt.active ? "aktiv" : "inaktiv"}</span>
+          <span>Priorität ${escapeHtml(prompt.priority)} - ${prompt.active ? "aktiv" : "inaktiv"}</span>
           <p>${escapeHtml(String(prompt.content || "").slice(0, 220))}</p>
         </div>
-        <button class="secondary-action" data-delete-prompt="${escapeHtml(prompt.id)}" type="button">Loeschen</button>
+        <button class="secondary-action" data-delete-prompt="${escapeHtml(prompt.id)}" type="button">Löschen</button>
       </article>
     `).join("")
     : "Noch keine System-Prompts.";
@@ -833,7 +833,7 @@ async function readTrainingFile(file) {
   if (/\.(txt|md)$/i.test(file.name) || /^text\//i.test(file.type)) {
     return file.text();
   }
-  return `Datei hochgeladen: ${file.name}. Typ: ${file.type || "unbekannt"}. Fuer produktive PDF/Word-Auswertung wird serverseitiges Parsing angeschlossen.`;
+  return `Datei hochgeladen: ${file.name}. Typ: ${file.type || "unbekannt"}. Für produktive PDF/Word-Auswertung wird serverseitiges Parsing angeschlossen.`;
 }
 
 function getFileType(file) {
@@ -931,7 +931,7 @@ function renderCandidateProfile() {
   const candidate = state.candidates.find((item) => item.id === selectedCandidateId);
   if (!candidate) {
     els.candidateProfile.className = "candidate-profile empty";
-    els.candidateProfile.textContent = "Waehle einen Bewerber aus.";
+    els.candidateProfile.textContent = "Wähle einen Bewerber aus.";
     return;
   }
 
@@ -950,7 +950,7 @@ function renderCandidateProfile() {
 
     <div class="profile-completeness">
       <div>
-        <span>Profilvollstaendigkeit</span>
+        <span>Profilvollständigkeit</span>
         <strong>${completeness}%</strong>
       </div>
       <div class="progress-track"><span style="width: ${completeness}%"></span></div>
@@ -961,7 +961,7 @@ function renderCandidateProfile() {
       <div class="info-grid">
         ${infoItem("E-Mail", profile.email)}
         ${infoItem("Telefon", profile.phone)}
-        ${infoItem("Verfuegbarkeit", profile.availability)}
+        ${infoItem("Verfügbarkeit", profile.availability)}
         ${infoItem("Gehaltswunsch", profile.salary)}
       </div>
     </div>
@@ -990,7 +990,7 @@ function jobCard(job) {
   return `
     <article class="entity-card">
       <strong>${escapeHtml(job.title)}</strong>
-      <span>${escapeHtml(job.client)} · ${escapeHtml(job.location)} · Prioritaet ${escapeHtml(job.priority)}</span>
+      <span>${escapeHtml(job.client)} · ${escapeHtml(job.location)} · Priorität ${escapeHtml(job.priority)}</span>
       <div class="tag-row">${job.requirements.map((term) => `<span class="tag">${escapeHtml(term)}</span>`).join("")}</div>
     </article>
   `;
@@ -1031,7 +1031,7 @@ function evaluateBotIntake(intake) {
   const answerTerms = splitTerms(intake.answers.replaceAll("\n", ","));
   const documents = intake.documents;
   const missingDocuments = requiredDocuments.filter((doc) => !documents.includes(doc));
-  const hasAvailability = /verfuegbar|verf.gbar|sofort|kuendigung|k.ndigung|start/i.test(intake.answers);
+  const hasAvailability = /verfügbar|verf.gbar|sofort|kuendigung|kündigung|start/i.test(intake.answers);
   const hasExperience = /jahr|erfahrung|ausbildung|zertifikat|abschluss|projekt/i.test(intake.answers);
   const hasSalary = /gehalt|lohn|stunde|brutto|netto|euro|eur/i.test(intake.answers);
   const skills = normalizeExtractedSkills([intake.role, ...answerTerms]).slice(0, 6);
@@ -1045,12 +1045,12 @@ function evaluateBotIntake(intake) {
   score = Math.min(score, 100);
 
   const checklist = [
-    { label: "Telefonnummer fuer WhatsApp erfasst", done: Boolean(intake.phone) },
+    { label: "Telefonnummer für WhatsApp erfasst", done: Boolean(intake.phone) },
     { label: "WhatsApp-Kontakt erlaubt", done: Boolean(intake.whatsappOptIn) },
     { label: "Kontaktdaten und Zielrolle erfasst", done: Boolean(intake.name && intake.role && intake.location) },
     { label: "Berufserfahrung erkennbar", done: hasExperience },
-    { label: "Verfuegbarkeit geklaert", done: hasAvailability },
-    { label: "Gehaltswunsch geklaert", done: hasSalary },
+    { label: "Verfügbarkeit geklärt", done: hasAvailability },
+    { label: "Gehaltswunsch geklärt", done: hasSalary },
     ...requiredDocuments.map((doc) => ({
       label: documentLabels[doc],
       done: documents.includes(doc),
@@ -1061,14 +1061,14 @@ function evaluateBotIntake(intake) {
   const nextAction = !intake.phone
     ? "Telefonnummer fehlt. Bot kann keinen WhatsApp-Erstkontakt starten."
     : !intake.whatsappOptIn
-      ? "WhatsApp-Opt-in fehlt. Bitte Einwilligung klaeren oder alternativen Kanal nutzen."
+      ? "WhatsApp-Opt-in fehlt. Bitte Einwilligung klären oder alternativen Kanal nutzen."
       : !intake.answers
         ? "Bot sendet WhatsApp-Erstnachricht und wartet auf Antwort."
         : missingDocuments.length
     ? `Bot fordert noch ${missingDocuments.map((doc) => documentLabels[doc]).join(", ")} an und erinnert automatisch nach 24 Stunden.`
     : score >= 75
-      ? "Bewerber ist vollstaendig genug fuer Recruiter Review und Matching."
-      : "Bot stellt Rueckfragen zu Erfahrung, Verfuegbarkeit und Gehaltswunsch.";
+      ? "Bewerber ist vollständig genug für Recruiter Review und Matching."
+      : "Bot stellt Rückfragen zu Erfahrung, Verfügbarkeit und Gehaltswunsch.";
 
   return {
     ...intake,
@@ -1091,12 +1091,12 @@ function advanceCandidate(id) {
 function generateAssistantReply(message) {
   const matches = buildMatches().slice(0, 3);
   if (!state.candidates.length || !state.jobs.length) {
-    return "Ich brauche mindestens einen Bewerber und eine Stelle, dann kann ich Matching-Vorschlaege erstellen.";
+    return "Ich brauche mindestens einen Bewerber und eine Stelle, dann kann ich Matching-Vorschläge erstellen.";
   }
   if (/match|passt|kandidat|stelle|sales|pflege/i.test(message)) {
-    return `Top-Vorschlag: ${matches[0].candidate.name} fuer ${matches[0].job.title} mit ${matches[0].score}% Score. Begruendung: gemeinsame Kriterien ${matches[0].shared.join(", ")}.`;
+    return `Top-Vorschlag: ${matches[0].candidate.name} für ${matches[0].job.title} mit ${matches[0].score}% Score. Begründung: gemeinsame Kriterien ${matches[0].shared.join(", ")}.`;
   }
-  return `Aktuell sehe ich ${state.candidates.length} Bewerber, ${state.jobs.length} aktive Stellen und ${matches.length} potenzielle Matches. Als naechstes wuerde ich die Top-Kandidaten qualifizieren und Kundenupdates vorbereiten.`;
+  return `Aktuell sehe ich ${state.candidates.length} Bewerber, ${state.jobs.length} aktive Stellen und ${matches.length} potenzielle Matches. Als Nächstes würde ich die Top-Kandidaten qualifizieren und Kundenupdates vorbereiten.`;
 }
 
 function addChat(type, text) {
@@ -1197,7 +1197,7 @@ function infoItem(label, value) {
 }
 
 function extractAvailability(text) {
-  const match = text.match(/(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfuegbar|verf.gbar|kuendigung|k.ndigung)/i);
+  const match = text.match(/(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfügbar|verf.gbar|kuendigung|kündigung)/i);
   return match ? match[0] : "";
 }
 
@@ -1225,13 +1225,13 @@ function formatDateTime(value) {
 
 function safeWarning(message) {
   if (/Incorrect API key|OpenAI API Fehler 401|API key/i.test(message)) {
-    return "KI-Auswertung nicht verfuegbar: OpenAI API-Key ist ungueltig, widerrufen oder unvollstaendig kopiert.";
+    return "KI-Auswertung nicht verfügbar: OpenAI API-Key ist ungültig, widerrufen oder unvollständig kopiert.";
   }
   return message;
 }
 
 function createWhatsAppMessage(intake) {
-  return `Hallo ${intake.name}, hier ist RecruitOS im Auftrag deiner Recruiting-Agentur. Du hast Interesse an der Rolle ${intake.role} in ${intake.location} angegeben. Kannst du mir kurz deine Erfahrung, Verfuegbarkeit, Gehaltswunsch und vorhandene Dokumente nennen?`;
+  return `Hallo ${intake.name}, hier ist RecruitOS im Auftrag deiner Recruiting-Agentur. Du hast Interesse an der Rolle ${intake.role} in ${intake.location} angegeben. Kannst du mir kurz deine Erfahrung, Verfügbarkeit, Gehaltswunsch und vorhandene Dokumente nennen?`;
 }
 
 function createWhatsAppLink(phone, message) {

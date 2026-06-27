@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import re
 import base64
@@ -58,7 +58,7 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
                 result = handle_whatsapp_inbound(payload)
             except Exception as exc:
                 result = {
-                    "reply": "Danke fuer deine Nachricht. Ich pruefe das gerade und melde mich gleich wieder.",
+                    "reply": "Danke für deine Nachricht. Ich prüfe das gerade und melde mich gleich wieder.",
                     "warning": str(exc),
                 }
             self._send_twiml(result.get("reply", "Danke, deine Nachricht wurde erfasst."))
@@ -84,7 +84,7 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
             result = rule_based_evaluation(payload, ai_enabled=False)
         except Exception as exc:
             result = rule_based_evaluation(payload, ai_enabled=False)
-            result["warning"] = f"KI-Auswertung nicht verfuegbar: {exc}"
+            result["warning"] = f"KI-Auswertung nicht verfügbar: {exc}"
 
         self._send_json(result)
 
@@ -174,9 +174,9 @@ def send_whatsapp_with_twilio(payload):
     message = str(payload.get("message", "")).strip()
 
     if not all([account_sid, auth_token, from_number]):
-        raise MissingTwilioConfig("Twilio ist noch nicht vollstaendig konfiguriert.")
+        raise MissingTwilioConfig("Twilio ist noch nicht vollständig konfiguriert.")
     if not to_number:
-        raise ValueError("Empfaenger-WhatsApp-Nummer fehlt.")
+        raise ValueError("Empfänger-WhatsApp-Nummer fehlt.")
     if not message:
         raise ValueError("Nachrichtentext fehlt.")
 
@@ -244,10 +244,10 @@ def safe_twilio_error(exc):
     if "not a valid whatsapp sender" in message.lower() or "from" in message.lower():
         return "Twilio WhatsApp-Absender ist nicht korrekt freigeschaltet oder falsch eingetragen."
     if "not a valid phone number" in message.lower() or "to" in message.lower():
-        return "Empfaenger-Nummer ist ungueltig. Nutze internationales Format, z. B. +491701234567."
+        return "Empfänger-Nummer ist ungültig. Nutze internationales Format, z. B. +491701234567."
     if "authenticate" in message.lower() or "account_sid" in message.lower():
-        return "Twilio Login-Daten sind ungueltig. Account SID und Auth Token pruefen."
-    return "WhatsApp konnte nicht gesendet werden. Bitte Twilio-Konfiguration und Server-Logs pruefen."
+        return "Twilio Login-Daten sind ungültig. Account SID und Auth Token prüfen."
+    return "WhatsApp konnte nicht gesendet werden. Bitte Twilio-Konfiguration und Server-Logs prüfen."
 
 
 def handle_whatsapp_inbound(form):
@@ -362,9 +362,9 @@ def continue_whatsapp_intake_rule_based(phone, conversation):
     candidate = {
         "name": "",
         "role": extract_match(inbound_text, r"(fahrer|pflege|sales|hr|lager|logistik|entwickler|manager)") or "",
-        "location": extract_match(inbound_text, r"(berlin|hamburg|muenchen|koeln|st\.?\s*georgen|stuttgart|frankfurt)") or "",
+        "location": extract_match(inbound_text, r"(berlin|hamburg|muenchen|münchen|koeln|köln|st\.?\s*georgen|stuttgart|frankfurt)") or "",
         "experience": extract_match(inbound_text, r"(\d+\s*(jahr|jahre|jahren).{0,40})") or inbound_text[-180:],
-        "availability": extract_match(inbound_text, r"(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfuegbar|verfügbar|kuendigung|kündigung)") or "",
+        "availability": extract_match(inbound_text, r"(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfügbar|kuendigung|kündigung)") or "",
         "salary": extract_match(inbound_text, r"(\d{2,3}[\.\s]?\d{3}|\d{3,5})\s*(eur|euro|brutto|netto)?") or "",
         "skills": extract_skills("", inbound_text),
         "documents": documents,
@@ -373,15 +373,15 @@ def continue_whatsapp_intake_rule_based(phone, conversation):
     if not candidate["experience"]:
         missing.append("Berufserfahrung")
     if not candidate["availability"]:
-        missing.append("Verfuegbarkeit")
+        missing.append("Verfügbarkeit")
     if not candidate["salary"]:
         missing.append("Gehaltswunsch")
     missing.extend(DOCUMENT_LABELS[doc] for doc in REQUIRED_DOCUMENTS if doc not in documents)
 
     if "Berufserfahrung" in missing:
-        reply = "Danke dir. Wie viele Jahre Erfahrung hast du genau und in welchen Aufgaben warst du taetig?"
-    elif "Verfuegbarkeit" in missing or "Gehaltswunsch" in missing:
-        reply = "Super, danke. Ab wann bist du verfuegbar und welche Gehaltsvorstellung hast du?"
+        reply = "Danke dir. Wie viele Jahre Erfahrung hast du genau und in welchen Aufgaben warst du tätig?"
+    elif "Verfügbarkeit" in missing or "Gehaltswunsch" in missing:
+        reply = "Super, danke. Ab wann bist du verfügbar und welche Gehaltsvorstellung hast du?"
     elif any(label in missing for label in DOCUMENT_LABELS.values()):
         reply = "Danke. Bitte sende mir jetzt noch deinen Lebenslauf, Zertifikate und einen Ausweis als Datei oder Foto hier in WhatsApp."
     else:
@@ -399,11 +399,11 @@ def continue_whatsapp_intake_rule_based(phone, conversation):
 def build_inbound_instructions(context):
     return (
         build_base_bot_instructions(context)
-        + " Fuehre ein natuerliches WhatsApp-Intake-Gespraech. Sammle nacheinander: Name, Zielrolle, Ort, "
-        "Berufserfahrung, Skills, Verfuegbarkeit, Gehaltswunsch, Lebenslauf, Zertifikate und Ausweis. "
-        "Wenn Medien gesendet wurden, werte sie als Dokumente. Stelle immer nur 1 bis 2 konkrete Rueckfragen. "
-        "Nutze Memory, Trainingswissen und aktive System-Prompts, um persoenlicher und weniger generisch zu antworten. "
-        "Wenn alle Kerndaten vorhanden sind, bestaetige die Uebergabe an den Recruiter. Antworte nur im JSON-Schema."
+        + " Führe ein natürliches WhatsApp-Intake-Gespräch. Sammle nacheinander: Name, Zielrolle, Ort, "
+        "Berufserfahrung, Skills, Verfügbarkeit, Gehaltswunsch, Lebenslauf, Zertifikate und Ausweis. "
+        "Wenn Medien gesendet wurden, werte sie als Dokumente. Stelle immer nur 1 bis 2 konkrete Rückfragen. "
+        "Nutze Memory, Trainingswissen und aktive System-Prompts, um persönlicher und weniger generisch zu antworten. "
+        "Wenn alle Kerndaten vorhanden sind, bestätige die Übergabe an den Recruiter. Antworte nur im JSON-Schema."
     )
 
 
@@ -417,13 +417,13 @@ def build_base_bot_instructions(context):
         "Du schreibst menschlich, empathisch, klar und individuell. Vermeide KI-Floskeln. "
         f"Kommunikationsstil: {personality.get('communicationStyle', 'professionell und freundlich')}. "
         f"Freundlichkeit: {personality.get('friendliness', 'hoch')}. "
-        f"Professionalitaet: {personality.get('professionalism', 'hoch')}. "
+        f"Professionalität: {personality.get('professionalism', 'hoch')}. "
         f"Humor: {personality.get('humor', 'dezent')}. "
         f"Verkaufsorientierung: {personality.get('salesOrientation', 'beratend')}. "
-        f"Antwortlaenge: {personality.get('answerLength', 'kurz bis mittel')}. "
+        f"Antwortlänge: {personality.get('answerLength', 'kurz bis mittel')}. "
         f"Sprache und Tonfall: {personality.get('tone', 'Deutsch, direkt und respektvoll')}. "
         f"Emoji-Nutzung: {personality.get('emojiUsage', 'sparsam')}. "
-        f"Schwierige Situationen: {personality.get('difficultSituations', 'ruhig bleiben, klaeren, keine falschen Versprechen machen')}. "
+        f"Schwierige Situationen: {personality.get('difficultSituations', 'ruhig bleiben, klären, keine falschen Versprechen machen')}. "
         f"Kundenbezogene Memory: {json.dumps(memory, ensure_ascii=False)[:1600]}. "
         f"Aktive System-Prompts: {json.dumps(prompts, ensure_ascii=False)[:1600]}. "
         f"Trainingswissen: {json.dumps(training, ensure_ascii=False)[:2600]}. "
@@ -500,6 +500,10 @@ def append_conversation_event(phone, event):
 
 def load_conversations():
     if not CONVERSATION_LOG.exists():
+        return {}
+    try:
+        return json.loads(CONVERSATION_LOG.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
         return {}
 
 
@@ -619,7 +623,7 @@ def save_personality(payload):
         "answerLength": payload.get("answerLength", "kurz bis mittel"),
         "tone": payload.get("tone", "Deutsch, direkt und respektvoll"),
         "emojiUsage": payload.get("emojiUsage", "sparsam"),
-        "difficultSituations": payload.get("difficultSituations", "ruhig bleiben, klaeren, keine falschen Versprechen machen"),
+        "difficultSituations": payload.get("difficultSituations", "ruhig bleiben, klären, keine falschen Versprechen machen"),
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     write_json(PERSONALITY_LOG, personality)
@@ -660,10 +664,6 @@ def read_json(path, fallback):
 
 def write_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        return json.loads(CONVERSATION_LOG.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
 
 
 def evaluate_with_openai(payload):
@@ -732,10 +732,10 @@ def evaluate_with_openai(payload):
         "model": MODEL,
         "instructions": (
             build_base_bot_instructions(bot_context)
-            + " WhatsApp ist der Hauptkanal. Wenn Telefonnummer oder WhatsApp-Opt-in fehlen, darfst du keine vollstaendige "
-            "Qualifizierung annehmen, sondern musst als naechste Aktion Kontaktfreigabe oder Telefonnummer anfordern. "
+            + " WhatsApp ist der Hauptkanal. Wenn Telefonnummer oder WhatsApp-Opt-in fehlen, darfst du keine vollständige "
+            "Qualifizierung annehmen, sondern musst als nächste Aktion Kontaktfreigabe oder Telefonnummer anfordern. "
             "Wenn noch keine Antworten vorliegen, erstelle eine individuelle WhatsApp-Erstnachricht. Analysiere den Erstkontakt, "
-            "extrahiere strukturierte Bewerberdaten, pruefe Pflichtdokumente und gib eine knappe Recruiter-Empfehlung. "
+            "extrahiere strukturierte Bewerberdaten, prüfe Pflichtdokumente und gib eine knappe Recruiter-Empfehlung. "
             "Antworte nur im geforderten JSON-Schema."
         ),
         "input": json.dumps({"payload": payload, "context": bot_context}, ensure_ascii=False),
@@ -793,12 +793,12 @@ def extract_output_text(data):
 
 def safe_openai_error(exc):
     if exc.code == 401:
-        return "OpenAI API Fehler 401: API-Key ist ungueltig, abgelaufen, widerrufen oder unvollstaendig kopiert."
+        return "OpenAI API Fehler 401: API-Key ist ungültig, abgelaufen, widerrufen oder unvollständig kopiert."
     if exc.code == 429:
-        return "OpenAI API Fehler 429: Limit erreicht oder Abrechnung/Quota pruefen."
+        return "OpenAI API Fehler 429: Limit erreicht oder Abrechnung/Quota prüfen."
     if exc.code == 400:
-        return "OpenAI API Fehler 400: Anfrageformat oder Modellparameter pruefen."
-    return f"OpenAI API Fehler {exc.code}: Bitte Server-Logs pruefen."
+        return "OpenAI API Fehler 400: Anfrageformat oder Modellparameter prüfen."
+    return f"OpenAI API Fehler {exc.code}: Bitte Server-Logs prüfen."
 
 
 def rule_based_evaluation(payload, ai_enabled):
@@ -807,7 +807,7 @@ def rule_based_evaluation(payload, ai_enabled):
     phone = payload.get("phone", "")
     whatsapp_opt_in = bool(payload.get("whatsappOptIn"))
     missing = [doc for doc in REQUIRED_DOCUMENTS if doc not in documents]
-    has_availability = bool(re.search(r"verfuegbar|verfügbar|sofort|kuendigung|kündigung|start", answers, re.I))
+    has_availability = bool(re.search(r"verfügbar|sofort|kuendigung|kündigung|start", answers, re.I))
     has_experience = bool(re.search(r"jahr|erfahrung|ausbildung|zertifikat|abschluss|projekt", answers, re.I))
     has_salary = bool(re.search(r"gehalt|lohn|stunde|brutto|netto|euro|eur", answers, re.I))
 
@@ -819,12 +819,12 @@ def rule_based_evaluation(payload, ai_enabled):
     score = min(score, 100)
 
     checklist = [
-        {"label": "Telefonnummer fuer WhatsApp erfasst", "done": bool(phone)},
+        {"label": "Telefonnummer für WhatsApp erfasst", "done": bool(phone)},
         {"label": "WhatsApp-Kontakt erlaubt", "done": whatsapp_opt_in},
         {"label": "Kontaktdaten und Zielrolle erfasst", "done": bool(payload.get("name") and payload.get("role"))},
         {"label": "Berufserfahrung erkennbar", "done": has_experience},
-        {"label": "Verfuegbarkeit geklaert", "done": has_availability},
-        {"label": "Gehaltswunsch geklaert", "done": has_salary},
+        {"label": "Verfügbarkeit geklärt", "done": has_availability},
+        {"label": "Gehaltswunsch geklärt", "done": has_salary},
     ]
     checklist.extend({"label": DOCUMENT_LABELS[doc], "done": doc in documents} for doc in REQUIRED_DOCUMENTS)
 
@@ -832,15 +832,15 @@ def rule_based_evaluation(payload, ai_enabled):
     if not phone:
         next_action = "Telefonnummer fehlt. Bot kann keinen WhatsApp-Erstkontakt starten."
     elif not whatsapp_opt_in:
-        next_action = "WhatsApp-Opt-in fehlt. Bitte Einwilligung klaeren oder alternativen Kanal nutzen."
+        next_action = "WhatsApp-Opt-in fehlt. Bitte Einwilligung klären oder alternativen Kanal nutzen."
     elif not answers:
         next_action = "Bot sendet WhatsApp-Erstnachricht und wartet auf Antwort."
     elif missing:
         next_action = "Bot fordert noch " + ", ".join(DOCUMENT_LABELS[doc] for doc in missing) + " an."
     elif score >= 75:
-        next_action = "Bewerber ist vollstaendig genug fuer Recruiter Review und Matching."
+        next_action = "Bewerber ist vollständig genug für Recruiter Review und Matching."
     else:
-        next_action = "Bot stellt Rueckfragen zu Erfahrung, Verfuegbarkeit und Gehaltswunsch."
+        next_action = "Bot stellt Rückfragen zu Erfahrung, Verfügbarkeit und Gehaltswunsch."
 
     skills = extract_skills(payload.get("role", ""), answers)
     result = {
@@ -857,7 +857,7 @@ def rule_based_evaluation(payload, ai_enabled):
         "score": score,
         "skills": skills,
         "experience": answers,
-        "availability": extract_match(answers, r"(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfuegbar|verfügbar)"),
+        "availability": extract_match(answers, r"(sofort|ab\s+\d{1,2}\.\d{1,2}\.\d{2,4}|verfügbar|verfügbar)"),
         "salary": extract_match(answers, r"(\d{2,3}[\.\s]?\d{3}|\d{3,5})\s*(eur|euro|brutto|netto)?"),
         "documents": documents,
         "missingDocuments": missing,
@@ -950,7 +950,7 @@ def create_whatsapp_message(payload):
     return (
         f"Hallo {name}, hier ist RecruitOS im Auftrag deiner Recruiting-Agentur. "
         f"Du hast Interesse an der Rolle {role} in {location} angegeben. "
-        "Kannst du mir kurz deine Erfahrung, Verfuegbarkeit, Gehaltswunsch "
+        "Kannst du mir kurz deine Erfahrung, Verfügbarkeit, Gehaltswunsch "
         "und vorhandene Dokumente nennen?"
     )
 
@@ -959,7 +959,7 @@ def main():
     port = int(os.environ.get("PORT", "8000"))
     host = os.environ.get("HOST", "0.0.0.0")
     server = ThreadingHTTPServer((host, port), RecruitingHandler)
-    print(f"RecruitOS laeuft auf {host}:{port}")
+    print(f"RecruitOS läuft auf {host}:{port}")
     server.serve_forever()
 
 

@@ -1,10 +1,10 @@
-# RecruitOS MVP
+﻿# RecruitOS MVP
 
-Erster klickbarer Prototyp fuer eine KI-gestuetzte Recruiting-Plattform mit CRM, Stellenverwaltung, Pipeline, Matching Engine und KI-Assistent-Simulation.
+Erster klickbarer Prototyp für eine KI-gestützte Recruiting-Plattform mit CRM, Stellenverwaltung, Pipeline, Matching Engine und KI-Assistent-Simulation.
 
 ## Start ohne KI-Key
 
-Oeffne `index.html` direkt im Browser.
+Öffne `index.html` direkt im Browser.
 
 ## Start mit lokalem Backend
 
@@ -20,11 +20,11 @@ Danach:
 http://127.0.0.1:8000/
 ```
 
-Der API-Key gehoert nur in die Backend-Umgebung, nie in `app.js` oder `index.html`.
+Der API-Key gehört nur in die Backend-Umgebung, nie in `app.js` oder `index.html`.
 
 ## Supabase Login aktivieren
 
-Trage nur die oeffentlichen Frontend-Werte in `supabase-config.js` ein:
+Trage nur die öffentlichen Frontend-Werte in `supabase-config.js` ein:
 
 ```js
 window.RECRUITOS_SUPABASE = {
@@ -33,7 +33,7 @@ window.RECRUITOS_SUPABASE = {
 };
 ```
 
-Der `service_role` oder `sb_secret` Key gehoert niemals in diese Datei. Er bleibt nur als Backend-Secret.
+Der `service_role` oder `sb_secret` Key gehört niemals in diese Datei. Er bleibt nur als Backend-Secret.
 
 ## Enthaltene MVP-Funktionen
 
@@ -48,12 +48,12 @@ Der `service_role` oder `sb_secret` Key gehoert niemals in diese Datei. Er bleib
 - Login-Interface mit Supabase Auth Vorbereitung
 - Lokale Speicherung im Browser per `localStorage`
 
-## Naechste technische Ausbaustufe
+## Nächste technische Ausbaustufe
 
 - Backend mit Node.js/NestJS oder Python/FastAPI
 - Datenbank mit PostgreSQL
-- Dateiablage fuer Lebenslaeufe und Vertrage
+- Dateiablage für Lebensläufe und Vertrage
 - CV-Parsing und strukturierte Extraktion
-- Echte OpenAI API fuer Chatbot, Qualifizierung und Score-Erklaerung
+- Echte OpenAI API für Chatbot, Qualifizierung und Score-Erklärung
 - Usage-Events in Supabase speichern und pro Agentur abrechnen
-- Rollenrechte fuer Recruiter, Admins und Kunden
+- Rollenrechte für Recruiter, Admins und Kunden
