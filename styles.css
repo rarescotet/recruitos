@@ -895,6 +895,145 @@ textarea {
   gap: 9px;
 }
 
+.filter-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.history-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.38fr) 1fr;
+  gap: 16px;
+  min-height: 520px;
+}
+
+.history-list,
+.training-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  text-align: left;
+}
+
+.history-card.active,
+.history-card:hover {
+  border-color: rgba(0, 107, 91, 0.45);
+  box-shadow: 0 10px 24px rgba(19, 45, 38, 0.08);
+}
+
+.history-card span,
+.history-card small,
+.training-item span,
+.timeline-message span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.history-card p,
+.training-item p,
+.memory-panel p,
+.timeline-message p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.history-detail {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfdfb;
+  padding: 14px;
+  overflow: auto;
+}
+
+.memory-panel {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+}
+
+.message-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-message {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  max-width: 78%;
+  padding: 11px 12px;
+}
+
+.timeline-message.inbound {
+  background: #fff;
+}
+
+.timeline-message.outbound {
+  justify-self: end;
+  background: #e8f6f1;
+  border-color: rgba(0, 107, 91, 0.22);
+}
+
+.training-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.training-item {
+  align-items: start;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto;
+  padding: 13px;
+}
+
+.training-item .secondary-action {
+  width: auto;
+}
+
+.personality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.personality-grid .wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 980px) {
+  .history-layout,
+  .training-layout,
+  .personality-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline-message {
+    max-width: 100%;
+  }
+}
+
 .checkbox-label input {
   width: auto;
 }

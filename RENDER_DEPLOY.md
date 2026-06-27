@@ -34,6 +34,10 @@ Nicht hochladen:
 server.log
 server.err.log
 ai_usage_events.json
+whatsapp_conversations.json
+bot_memory.json
+bot_training.json
+bot_personality.json
 __pycache__
 ```
 
@@ -116,3 +120,16 @@ Method: HTTP POST
 ```
 
 Lokal funktioniert `http://127.0.0.1:8000/api/whatsapp/inbound` nur fuer Tests auf deinem Rechner. Twilio selbst kann `127.0.0.1` nicht erreichen. Fuer echte WhatsApp-Antworten brauchst du deine Render-URL oder einen Tunnel wie ngrok.
+
+## 7. Memory, Chat-Verlaeufe und Training
+
+RecruitOS speichert im MVP serverseitig:
+
+```text
+whatsapp_conversations.json
+bot_memory.json
+bot_training.json
+bot_personality.json
+```
+
+Diese Dateien gehoeren nicht in GitHub. Fuer echte Produktionsnutzung mit dauerhafter Speicherung nach Deploys sollten diese Daten in Supabase-Tabellen verschoben werden.

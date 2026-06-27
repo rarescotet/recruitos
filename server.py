@@ -17,6 +17,9 @@ MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
 TWILIO_API_BASE = "https://api.twilio.com/2010-04-01"
 USAGE_LOG = ROOT / "ai_usage_events.json"
 CONVERSATION_LOG = ROOT / "whatsapp_conversations.json"
+MEMORY_LOG = ROOT / "bot_memory.json"
+TRAINING_LOG = ROOT / "bot_training.json"
+PERSONALITY_LOG = ROOT / "bot_personality.json"
 DOCUMENT_LABELS = {
     "cv": "Lebenslauf",
     "certificate": "Zertifikate",
@@ -30,6 +33,25 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_POST(self):
+        if self.path == "/api/training/document":
+            self._send_json(save_training_document(self._read_json()))
+            return
+        if self.path == "/api/training/document/delete":
+            self._send_json(delete_training_document(self._read_json()))
+            return
+        if self.path == "/api/training/prompt":
+            self._send_json(save_system_prompt(self._read_json()))
+            return
+        if self.path == "/api/training/prompt/delete":
+            self._send_json(delete_system_prompt(self._read_json()))
+            return
+        if self.path == "/api/personality":
+            self._send_json(save_personality(self._read_json()))
+            return
+        if self.path == "/api/memory":
+            self._send_json(save_memory_entry(self._read_json()))
+            return
+
         if self.path == "/api/whatsapp/inbound":
             try:
                 payload = self._read_form()
@@ -86,6 +108,14 @@ class RecruitingHandler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/whatsapp-conversations":
             self._send_json(load_conversations())
+            return
+        if self.path == "/api/bot-data":
+            self._send_json({
+                "conversations": load_conversations(),
+                "memory": load_memory(),
+                "training": load_training(),
+                "personality": load_personality(),
+            })
             return
         super().do_GET()
 
@@ -251,6 +281,7 @@ def handle_whatsapp_inbound(form):
         "missingFields": result.get("missingFields", []),
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
+    update_memory_from_intake(from_number, result)
     return result
 
 
@@ -285,17 +316,11 @@ def continue_whatsapp_intake_with_openai(phone, conversation):
         "required": ["reply", "candidate", "missingFields", "readyForRecruiter"],
     }
     messages = conversation[-12:]
+    bot_context = build_bot_context(phone)
     body = {
         "model": MODEL,
-        "instructions": (
-            "Du bist ein WhatsApp-Recruiting-Bot. Fuehre ein kurzes, freundliches Intake-Gespraech. "
-            "Sammle nacheinander: Name, Zielrolle, Ort, Berufserfahrung, Skills, Verfuegbarkeit, Gehaltswunsch, "
-            "Lebenslauf, Zertifikate und Ausweis. Wenn Medien gesendet wurden, werte sie als Dokumente und frage "
-            "nur noch nach fehlenden Dokumenten. Stelle immer nur 1 bis 2 konkrete Rueckfragen pro Antwort. "
-            "Wenn alle Kerndaten vorhanden sind, bestaetige die Uebergabe an den Recruiter. "
-            "Antworte auf Deutsch und nur im JSON-Schema."
-        ),
-        "input": json.dumps({"phone": phone, "conversation": messages}, ensure_ascii=False),
+        "instructions": build_inbound_instructions(bot_context),
+        "input": json.dumps({"phone": phone, "conversation": messages, "context": bot_context}, ensure_ascii=False),
         "text": {
             "format": {
                 "type": "json_schema",
@@ -371,6 +396,62 @@ def continue_whatsapp_intake_rule_based(phone, conversation):
     }
 
 
+def build_inbound_instructions(context):
+    return (
+        build_base_bot_instructions(context)
+        + " Fuehre ein natuerliches WhatsApp-Intake-Gespraech. Sammle nacheinander: Name, Zielrolle, Ort, "
+        "Berufserfahrung, Skills, Verfuegbarkeit, Gehaltswunsch, Lebenslauf, Zertifikate und Ausweis. "
+        "Wenn Medien gesendet wurden, werte sie als Dokumente. Stelle immer nur 1 bis 2 konkrete Rueckfragen. "
+        "Nutze Memory, Trainingswissen und aktive System-Prompts, um persoenlicher und weniger generisch zu antworten. "
+        "Wenn alle Kerndaten vorhanden sind, bestaetige die Uebergabe an den Recruiter. Antworte nur im JSON-Schema."
+    )
+
+
+def build_base_bot_instructions(context):
+    personality = context.get("personality", {})
+    prompts = context.get("activePrompts", [])
+    memory = context.get("memory", {})
+    training = context.get("trainingSnippets", [])
+    return (
+        "Du bist ein professioneller Recruiting-Mitarbeiter der Agentur, nicht ein generischer Chatbot. "
+        "Du schreibst menschlich, empathisch, klar und individuell. Vermeide KI-Floskeln. "
+        f"Kommunikationsstil: {personality.get('communicationStyle', 'professionell und freundlich')}. "
+        f"Freundlichkeit: {personality.get('friendliness', 'hoch')}. "
+        f"Professionalitaet: {personality.get('professionalism', 'hoch')}. "
+        f"Humor: {personality.get('humor', 'dezent')}. "
+        f"Verkaufsorientierung: {personality.get('salesOrientation', 'beratend')}. "
+        f"Antwortlaenge: {personality.get('answerLength', 'kurz bis mittel')}. "
+        f"Sprache und Tonfall: {personality.get('tone', 'Deutsch, direkt und respektvoll')}. "
+        f"Emoji-Nutzung: {personality.get('emojiUsage', 'sparsam')}. "
+        f"Schwierige Situationen: {personality.get('difficultSituations', 'ruhig bleiben, klaeren, keine falschen Versprechen machen')}. "
+        f"Kundenbezogene Memory: {json.dumps(memory, ensure_ascii=False)[:1600]}. "
+        f"Aktive System-Prompts: {json.dumps(prompts, ensure_ascii=False)[:1600]}. "
+        f"Trainingswissen: {json.dumps(training, ensure_ascii=False)[:2600]}. "
+    )
+
+
+def build_bot_context(customer_key):
+    training = load_training()
+    active_prompts = sorted(
+        [prompt for prompt in training.get("prompts", []) if prompt.get("active", True)],
+        key=lambda prompt: int(prompt.get("priority", 5)),
+    )
+    snippets = []
+    for document in training.get("documents", []):
+        if document.get("active", True):
+            snippets.append({
+                "title": document.get("title", "Dokument"),
+                "type": document.get("type", "text"),
+                "content": str(document.get("content", ""))[:1200],
+            })
+    return {
+        "memory": load_memory().get(customer_key, {}),
+        "activePrompts": active_prompts[:8],
+        "trainingSnippets": snippets[:8],
+        "personality": load_personality(),
+    }
+
+
 def extract_twilio_media(form):
     media = []
     try:
@@ -420,6 +501,165 @@ def append_conversation_event(phone, event):
 def load_conversations():
     if not CONVERSATION_LOG.exists():
         return {}
+
+
+def update_memory_from_intake(customer_key, result):
+    candidate = result.get("candidate", {})
+    memory = load_memory()
+    current = memory.get(customer_key, {
+        "customerKey": customer_key,
+        "knownFacts": [],
+        "answeredQuestions": [],
+        "preferences": [],
+        "lastUpdated": "",
+        "profile": {},
+    })
+    profile = current.get("profile", {})
+    for key in ["name", "role", "location", "experience", "availability", "salary"]:
+        value = candidate.get(key)
+        if value:
+            profile[key] = value
+    if candidate.get("skills"):
+        profile["skills"] = candidate.get("skills", [])
+    if candidate.get("documents"):
+        profile["documents"] = candidate.get("documents", [])
+    for field in result.get("missingFields", []):
+        if field not in current["answeredQuestions"]:
+            continue
+    summary = result.get("reply") or result.get("summary") or ""
+    if summary:
+        fact = summary[:260]
+        if fact not in current["knownFacts"]:
+            current["knownFacts"].append(fact)
+    current["knownFacts"] = current["knownFacts"][-20:]
+    current["profile"] = profile
+    current["lastUpdated"] = datetime.now(timezone.utc).isoformat()
+    memory[customer_key] = current
+    write_json(MEMORY_LOG, memory)
+
+
+def save_memory_entry(payload):
+    customer_key = payload.get("customerKey") or payload.get("phone") or "manual"
+    memory = load_memory()
+    current = memory.get(customer_key, {
+        "customerKey": customer_key,
+        "knownFacts": [],
+        "answeredQuestions": [],
+        "preferences": [],
+        "lastUpdated": "",
+        "profile": {},
+    })
+    note = str(payload.get("note", "")).strip()
+    if note and note not in current["knownFacts"]:
+        current["knownFacts"].append(note)
+    current["lastUpdated"] = datetime.now(timezone.utc).isoformat()
+    memory[customer_key] = current
+    write_json(MEMORY_LOG, memory)
+    return {"saved": True, "memory": current}
+
+
+def save_training_document(payload):
+    training = load_training()
+    document_id = payload.get("id") or f"doc-{datetime.now(timezone.utc).timestamp()}"
+    documents = [item for item in training.get("documents", []) if item.get("id") != document_id]
+    documents.append({
+        "id": document_id,
+        "title": payload.get("title") or "Unbenanntes Dokument",
+        "type": payload.get("type") or "text",
+        "content": str(payload.get("content", ""))[:60000],
+        "active": bool(payload.get("active", True)),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    })
+    training["documents"] = documents
+    write_json(TRAINING_LOG, training)
+    return {"saved": True, "documentId": document_id, "training": training}
+
+
+def delete_training_document(payload):
+    training = load_training()
+    document_id = payload.get("id")
+    training["documents"] = [item for item in training.get("documents", []) if item.get("id") != document_id]
+    write_json(TRAINING_LOG, training)
+    return {"deleted": True, "training": training}
+
+
+def save_system_prompt(payload):
+    training = load_training()
+    prompt_id = payload.get("id") or f"prompt-{datetime.now(timezone.utc).timestamp()}"
+    prompts = [item for item in training.get("prompts", []) if item.get("id") != prompt_id]
+    prompts.append({
+        "id": prompt_id,
+        "title": payload.get("title") or "System-Prompt",
+        "content": str(payload.get("content", ""))[:12000],
+        "priority": int(payload.get("priority", 5) or 5),
+        "active": bool(payload.get("active", True)),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    })
+    training["prompts"] = prompts
+    write_json(TRAINING_LOG, training)
+    return {"saved": True, "promptId": prompt_id, "training": training}
+
+
+def delete_system_prompt(payload):
+    training = load_training()
+    prompt_id = payload.get("id")
+    training["prompts"] = [item for item in training.get("prompts", []) if item.get("id") != prompt_id]
+    write_json(TRAINING_LOG, training)
+    return {"deleted": True, "training": training}
+
+
+def save_personality(payload):
+    personality = {
+        "communicationStyle": payload.get("communicationStyle", "professionell und freundlich"),
+        "friendliness": payload.get("friendliness", "hoch"),
+        "politeness": payload.get("politeness", "hoch"),
+        "humor": payload.get("humor", "dezent"),
+        "professionalism": payload.get("professionalism", "hoch"),
+        "salesOrientation": payload.get("salesOrientation", "beratend"),
+        "answerLength": payload.get("answerLength", "kurz bis mittel"),
+        "tone": payload.get("tone", "Deutsch, direkt und respektvoll"),
+        "emojiUsage": payload.get("emojiUsage", "sparsam"),
+        "difficultSituations": payload.get("difficultSituations", "ruhig bleiben, klaeren, keine falschen Versprechen machen"),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    write_json(PERSONALITY_LOG, personality)
+    return {"saved": True, "personality": personality}
+
+
+def load_memory():
+    return read_json(MEMORY_LOG, {})
+
+
+def load_training():
+    return read_json(TRAINING_LOG, {"documents": [], "prompts": []})
+
+
+def load_personality():
+    return read_json(PERSONALITY_LOG, {
+        "communicationStyle": "professionell, menschlich und klar",
+        "friendliness": "hoch",
+        "politeness": "hoch",
+        "humor": "dezent",
+        "professionalism": "hoch",
+        "salesOrientation": "beratend",
+        "answerLength": "kurz bis mittel",
+        "tone": "Deutsch, respektvoll, nahbar",
+        "emojiUsage": "sparsam",
+        "difficultSituations": "ruhig bleiben, empathisch reagieren, sauber an Recruiter eskalieren",
+    })
+
+
+def read_json(path, fallback):
+    if not path.exists():
+        return fallback
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return fallback
+
+
+def write_json(path, data):
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     try:
         return json.loads(CONVERSATION_LOG.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
@@ -487,18 +727,18 @@ def evaluate_with_openai(payload):
         ],
     }
 
+    bot_context = build_bot_context(normalize_twilio_whatsapp(payload.get("phone", "")) or payload.get("phone", "manual"))
     body = {
         "model": MODEL,
         "instructions": (
-            "Du bist ein KI-Recruiting-Bot fuer eine Recruiting-Agentur. "
-            "WhatsApp ist der Hauptkanal. Wenn Telefonnummer oder WhatsApp-Opt-in fehlen, "
-            "darfst du keine vollstaendige Qualifizierung annehmen, sondern musst als naechste Aktion "
-            "Kontaktfreigabe oder Telefonnummer anfordern. Wenn noch keine Antworten vorliegen, "
-            "erstelle eine kurze WhatsApp-Erstnachricht. Analysiere den Erstkontakt, extrahiere strukturierte Bewerberdaten, "
-            "pruefe Pflichtdokumente und gib eine knappe Recruiter-Empfehlung. "
+            build_base_bot_instructions(bot_context)
+            + " WhatsApp ist der Hauptkanal. Wenn Telefonnummer oder WhatsApp-Opt-in fehlen, darfst du keine vollstaendige "
+            "Qualifizierung annehmen, sondern musst als naechste Aktion Kontaktfreigabe oder Telefonnummer anfordern. "
+            "Wenn noch keine Antworten vorliegen, erstelle eine individuelle WhatsApp-Erstnachricht. Analysiere den Erstkontakt, "
+            "extrahiere strukturierte Bewerberdaten, pruefe Pflichtdokumente und gib eine knappe Recruiter-Empfehlung. "
             "Antworte nur im geforderten JSON-Schema."
         ),
-        "input": json.dumps(payload, ensure_ascii=False),
+        "input": json.dumps({"payload": payload, "context": bot_context}, ensure_ascii=False),
         "text": {
             "format": {
                 "type": "json_schema",
@@ -534,6 +774,11 @@ def evaluate_with_openai(payload):
     result["usage"] = normalize_openai_usage(data.get("usage", {}))
     result["responseId"] = data.get("id")
     log_usage_event(payload, result, ai_enabled=True)
+    update_memory_from_intake(normalize_twilio_whatsapp(payload.get("phone", "")) or payload.get("phone", "manual"), {
+        "candidate": result,
+        "summary": result.get("summary", ""),
+        "missingFields": result.get("missingDocuments", []),
+    })
     return result
 
 

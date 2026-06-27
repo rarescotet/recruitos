@@ -18,6 +18,8 @@ const documentLabels = {
 const state = loadState();
 let selectedCandidateId = state.candidates[0]?.id || null;
 let currentUser = loadDemoSession();
+let botData = { conversations: {}, memory: {}, training: { documents: [], prompts: [] }, personality: {} };
+let selectedConversationKey = null;
 const supabaseClient = createSupabaseClient();
 
 const els = {
@@ -57,6 +59,18 @@ const els = {
   jobCount: document.querySelector("#job-count"),
   matchCount: document.querySelector("#match-count"),
   avgScore: document.querySelector("#avg-score"),
+  historySearch: document.querySelector("#history-search"),
+  refreshHistory: document.querySelector("#refresh-history"),
+  historyCount: document.querySelector("#history-count"),
+  historyList: document.querySelector("#history-list"),
+  historyDetail: document.querySelector("#history-detail"),
+  trainingDocumentForm: document.querySelector("#training-document-form"),
+  trainingFiles: document.querySelector("#training-files"),
+  trainingDocuments: document.querySelector("#training-documents"),
+  systemPromptForm: document.querySelector("#system-prompt-form"),
+  systemPrompts: document.querySelector("#system-prompts"),
+  personalityForm: document.querySelector("#personality-form"),
+  personalityStatus: document.querySelector("#personality-status"),
 };
 
 els.authTabs.forEach((button) => {
@@ -222,6 +236,59 @@ els.chatForm.addEventListener("submit", (event) => {
   event.target.reset();
 });
 
+els.refreshHistory?.addEventListener("click", () => refreshBotData());
+els.historySearch?.addEventListener("input", () => renderHistory());
+
+els.trainingDocumentForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const files = Array.from(els.trainingFiles.files || []);
+  const manualContent = form.get("content").trim();
+  if (!files.length && !manualContent) return;
+
+  if (files.length) {
+    for (const file of files) {
+      await saveTrainingDocument({
+        title: form.get("title").trim() || file.name,
+        type: getFileType(file),
+        content: await readTrainingFile(file),
+        active: form.get("active") === "on",
+      });
+    }
+  } else {
+    await saveTrainingDocument({
+      title: form.get("title").trim() || "Manueller Eintrag",
+      type: "text",
+      content: manualContent,
+      active: form.get("active") === "on",
+    });
+  }
+  event.target.reset();
+  await refreshBotData();
+});
+
+els.systemPromptForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  await saveSystemPrompt({
+    title: form.get("title").trim(),
+    content: form.get("content").trim(),
+    priority: Number(form.get("priority") || 5),
+    active: form.get("active") === "on",
+  });
+  event.target.reset();
+  await refreshBotData();
+});
+
+els.personalityForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const payload = Object.fromEntries(form.entries());
+  await postJson("/api/personality", payload);
+  els.personalityStatus.textContent = "gespeichert";
+  await refreshBotData();
+});
+
 els.botIntakeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.target);
@@ -252,9 +319,13 @@ function switchView(viewName) {
     jobs: "Stellen",
     pipeline: "Pipeline",
     bots: "KI-Bots",
+    history: "Chat-Verlaeufe",
+    training: "Training",
+    personality: "Bot-Profil",
     assistant: "KI-Assistent",
   }[viewName];
   if (viewName === "bots") refreshAiUsage();
+  if (["history", "training", "personality"].includes(viewName)) refreshBotData();
 }
 
 async function initAuth() {
@@ -333,6 +404,7 @@ function showApp() {
   els.appShell.classList.remove("hidden");
   els.userChip.textContent = `${currentUser.fullName || currentUser.email} - ${currentUser.organization || "Agentur"}`;
   refreshAiUsage();
+  refreshBotData();
 }
 
 function showAuth() {
@@ -583,6 +655,193 @@ async function sendWhatsAppMessage(to, message) {
 
 async function refreshAiUsage() {
   await Promise.all([loadAiStatus(), loadAiUsage()]);
+}
+
+async function refreshBotData() {
+  try {
+    const response = await fetch("/api/bot-data");
+    botData = await response.json();
+    renderHistory();
+    renderTraining();
+    renderPersonality();
+  } catch {
+    if (els.historyList) {
+      els.historyList.className = "history-list empty";
+      els.historyList.textContent = "Bot-Daten konnten nicht geladen werden.";
+    }
+  }
+}
+
+function renderHistory() {
+  if (!els.historyList) return;
+  const query = (els.historySearch?.value || "").toLowerCase().trim();
+  const entries = Object.entries(botData.conversations || {})
+    .map(([key, events]) => ({
+      key,
+      events,
+      latest: events[events.length - 1],
+      text: events.map((event) => `${event.body || ""} ${JSON.stringify(event.candidate || {})}`).join(" "),
+    }))
+    .filter((item) => {
+      if (!query) return true;
+      return `${item.key} ${item.text} ${item.latest?.createdAt || ""}`.toLowerCase().includes(query);
+    })
+    .sort((a, b) => String(b.latest?.createdAt || "").localeCompare(String(a.latest?.createdAt || "")));
+
+  els.historyCount.textContent = `${entries.length} Chats`;
+  if (!entries.length) {
+    els.historyList.className = "history-list empty";
+    els.historyList.textContent = "Keine passenden Chats gefunden.";
+    els.historyDetail.className = "history-detail empty";
+    els.historyDetail.textContent = "Waehle einen Chat aus.";
+    return;
+  }
+
+  if (!selectedConversationKey || !entries.some((entry) => entry.key === selectedConversationKey)) {
+    selectedConversationKey = entries[0].key;
+  }
+
+  els.historyList.className = "history-list";
+  els.historyList.innerHTML = entries.map((entry) => {
+    const memory = botData.memory?.[entry.key]?.profile || {};
+    const label = memory.name || memory.role || entry.key.replace("whatsapp:", "");
+    const lastBody = entry.latest?.body || "Keine Nachricht";
+    return `
+      <button class="history-card ${entry.key === selectedConversationKey ? "active" : ""}" data-conversation-key="${escapeHtml(entry.key)}" type="button">
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(entry.key)}</span>
+        <small>${escapeHtml(formatDateTime(entry.latest?.createdAt))}</small>
+        <p>${escapeHtml(lastBody.slice(0, 110))}</p>
+      </button>
+    `;
+  }).join("");
+
+  els.historyList.querySelectorAll("[data-conversation-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedConversationKey = button.dataset.conversationKey;
+      renderHistory();
+    });
+  });
+  renderHistoryDetail();
+}
+
+function renderHistoryDetail() {
+  const events = botData.conversations?.[selectedConversationKey] || [];
+  const memory = botData.memory?.[selectedConversationKey] || {};
+  if (!events.length) {
+    els.historyDetail.className = "history-detail empty";
+    els.historyDetail.textContent = "Waehle einen Chat aus.";
+    return;
+  }
+  els.historyDetail.className = "history-detail";
+  els.historyDetail.innerHTML = `
+    <div class="memory-panel">
+      <strong>Kunden-Memory</strong>
+      <div class="tag-row">
+        ${Object.entries(memory.profile || {}).slice(0, 8).map(([key, value]) => `<span class="tag">${escapeHtml(key)}: ${escapeHtml(Array.isArray(value) ? value.join(", ") : value)}</span>`).join("")}
+      </div>
+      <p>${escapeHtml((memory.knownFacts || []).slice(-3).join(" ")) || "Noch keine Memory-Fakten."}</p>
+    </div>
+    <div class="message-timeline">
+      ${events.map((event) => `
+        <article class="timeline-message ${event.direction === "inbound" ? "inbound" : "outbound"}">
+          <span>${escapeHtml(formatDateTime(event.createdAt))} - ${escapeHtml(event.direction || "-")}</span>
+          <p>${escapeHtml(event.body || "")}</p>
+          ${event.media?.length ? `<small>${event.media.length} Datei(en) empfangen</small>` : ""}
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderTraining() {
+  if (!els.trainingDocuments) return;
+  const documents = botData.training?.documents || [];
+  const prompts = botData.training?.prompts || [];
+  els.trainingDocuments.className = documents.length ? "training-list" : "training-list empty";
+  els.trainingDocuments.innerHTML = documents.length
+    ? documents.map((document) => `
+      <article class="training-item">
+        <div>
+          <strong>${escapeHtml(document.title)}</strong>
+          <span>${escapeHtml(document.type)} - ${document.active ? "aktiv" : "inaktiv"} - ${escapeHtml(formatDateTime(document.updatedAt))}</span>
+          <p>${escapeHtml(String(document.content || "").slice(0, 180))}</p>
+        </div>
+        <button class="secondary-action" data-delete-document="${escapeHtml(document.id)}" type="button">Loeschen</button>
+      </article>
+    `).join("")
+    : "Noch keine Trainingsdokumente.";
+
+  els.systemPrompts.className = prompts.length ? "training-list" : "training-list empty";
+  els.systemPrompts.innerHTML = prompts.length
+    ? prompts.sort((a, b) => Number(a.priority || 5) - Number(b.priority || 5)).map((prompt) => `
+      <article class="training-item">
+        <div>
+          <strong>${escapeHtml(prompt.title)}</strong>
+          <span>Prioritaet ${escapeHtml(prompt.priority)} - ${prompt.active ? "aktiv" : "inaktiv"}</span>
+          <p>${escapeHtml(String(prompt.content || "").slice(0, 220))}</p>
+        </div>
+        <button class="secondary-action" data-delete-prompt="${escapeHtml(prompt.id)}" type="button">Loeschen</button>
+      </article>
+    `).join("")
+    : "Noch keine System-Prompts.";
+
+  els.trainingDocuments.querySelectorAll("[data-delete-document]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await postJson("/api/training/document/delete", { id: button.dataset.deleteDocument });
+      await refreshBotData();
+    });
+  });
+  els.systemPrompts.querySelectorAll("[data-delete-prompt]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await postJson("/api/training/prompt/delete", { id: button.dataset.deletePrompt });
+      await refreshBotData();
+    });
+  });
+}
+
+function renderPersonality() {
+  if (!els.personalityForm) return;
+  const personality = botData.personality || {};
+  Array.from(els.personalityForm.elements).forEach((field) => {
+    if (field.name && personality[field.name] !== undefined && !field.value) {
+      field.value = personality[field.name];
+    }
+  });
+  els.personalityStatus.textContent = personality.updatedAt ? `aktualisiert ${formatDateTime(personality.updatedAt)}` : "Standard aktiv";
+}
+
+async function saveTrainingDocument(payload) {
+  return postJson("/api/training/document", payload);
+}
+
+async function saveSystemPrompt(payload) {
+  return postJson("/api/training/prompt", payload);
+}
+
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`API Status ${response.status}`);
+  return response.json();
+}
+
+async function readTrainingFile(file) {
+  if (/\.(txt|md)$/i.test(file.name) || /^text\//i.test(file.type)) {
+    return file.text();
+  }
+  return `Datei hochgeladen: ${file.name}. Typ: ${file.type || "unbekannt"}. Fuer produktive PDF/Word-Auswertung wird serverseitiges Parsing angeschlossen.`;
+}
+
+function getFileType(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return "pdf";
+  if (name.endsWith(".doc") || name.endsWith(".docx")) return "word";
+  if (name.endsWith(".md")) return "markdown";
+  return "text";
 }
 
 async function loadAiStatus() {
@@ -949,6 +1208,19 @@ function extractSalary(text) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("de-DE").format(value);
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function safeWarning(message) {

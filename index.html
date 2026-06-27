@@ -71,6 +71,9 @@
           <button class="nav-item" data-view="jobs">Stellen</button>
           <button class="nav-item" data-view="pipeline">Pipeline</button>
           <button class="nav-item" data-view="bots">KI-Bots</button>
+          <button class="nav-item" data-view="history">Chat-Verlaeufe</button>
+          <button class="nav-item" data-view="training">Training</button>
+          <button class="nav-item" data-view="personality">Bot-Profil</button>
           <button class="nav-item" data-view="assistant">KI-Assistent</button>
         </nav>
       </aside>
@@ -349,10 +352,91 @@
             </section>
           </div>
         </section>
+
+        <section class="view" id="history-view">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Chat-Verlaeufe</h2>
+              <span id="history-count">0 Chats</span>
+            </div>
+            <div class="filter-row">
+              <input id="history-search" placeholder="Kunde, Telefonnummer, Datum oder Stichwort suchen" />
+              <button class="secondary-action" id="refresh-history" type="button">Aktualisieren</button>
+            </div>
+            <div class="history-layout">
+              <div id="history-list" class="history-list empty">Noch keine gespeicherten Chats.</div>
+              <div id="history-detail" class="history-detail empty">Waehle einen Chat aus.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="training-view">
+          <div class="training-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Wissensdatenbank</h2>
+                <span>Dokumente fuer den Bot</span>
+              </div>
+              <form id="training-document-form" class="bot-form">
+                <label>Dokumente hochladen
+                  <input id="training-files" name="files" type="file" multiple accept=".txt,.md,.pdf,.doc,.docx" />
+                </label>
+                <label>Titel / Kategorie<input name="title" placeholder="z. B. Unternehmensprofil, Recruiting-Prozess" /></label>
+                <label>Textinhalt<textarea name="content" placeholder="Optional: Text direkt einfuegen oder aus Datei laden"></textarea></label>
+                <label class="checkbox-label">
+                  <input name="active" type="checkbox" checked />
+                  Aktiv fuer Bot-Antworten
+                </label>
+                <button class="primary-action" type="submit">Dokument speichern</button>
+              </form>
+              <div id="training-documents" class="training-list empty">Noch keine Trainingsdokumente.</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h2>System-Prompts</h2>
+                <span>Prioritaet und Aktivierung</span>
+              </div>
+              <form id="system-prompt-form" class="bot-form">
+                <label>Titel<input name="title" required placeholder="z. B. Bewerberkommunikation" /></label>
+                <label>Prioritaet<input name="priority" type="number" min="1" max="10" value="5" /></label>
+                <label>Prompt<textarea name="content" required placeholder="Regeln, Tonalitaet, Prozesswissen oder Eskalationslogik"></textarea></label>
+                <label class="checkbox-label">
+                  <input name="active" type="checkbox" checked />
+                  Aktiv
+                </label>
+                <button class="primary-action" type="submit">Prompt speichern</button>
+              </form>
+              <div id="system-prompts" class="training-list empty">Noch keine System-Prompts.</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="personality-view">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Bot-Persoenlichkeit</h2>
+              <span id="personality-status">nicht geladen</span>
+            </div>
+            <form id="personality-form" class="personality-grid">
+              <label>Kommunikationsstil<input name="communicationStyle" placeholder="professionell, menschlich und klar" /></label>
+              <label>Freundlichkeit<input name="friendliness" placeholder="hoch" /></label>
+              <label>Hoeflichkeit<input name="politeness" placeholder="hoch" /></label>
+              <label>Humor<input name="humor" placeholder="dezent" /></label>
+              <label>Professionalitaet<input name="professionalism" placeholder="hoch" /></label>
+              <label>Verkaufsorientierung<input name="salesOrientation" placeholder="beratend" /></label>
+              <label>Antwortlaenge<input name="answerLength" placeholder="kurz bis mittel" /></label>
+              <label>Sprache und Tonfall<input name="tone" placeholder="Deutsch, respektvoll, nahbar" /></label>
+              <label>Emoji-Nutzung<input name="emojiUsage" placeholder="sparsam" /></label>
+              <label class="wide">Schwierige Situationen<textarea name="difficultSituations" placeholder="ruhig bleiben, empathisch reagieren, sauber an Recruiter eskalieren"></textarea></label>
+              <button class="primary-action wide" type="submit">Persoenlichkeit speichern</button>
+            </form>
+          </div>
+        </section>
       </main>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./app.js?v=20260628-twilio-send"></script>
+    <script src="./app.js?v=20260628-memory-training"></script>
   </body>
 </html>
