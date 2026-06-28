@@ -404,7 +404,8 @@ def build_inbound_instructions(context):
         build_base_bot_instructions(context)
         + " Führe ein natürliches WhatsApp-Intake-Gespräch. Sammle nacheinander: Name, Zielrolle, Ort, "
         "Berufserfahrung, Skills, Verfügbarkeit, Gehaltswunsch, Lebenslauf, Zertifikate und Ausweis. "
-        "Wenn Medien gesendet wurden, werte sie als Dokumente. Stelle immer nur 1 bis 2 konkrete Rückfragen. "
+        "Dokumente gelten nur dann als vorhanden, wenn sie als WhatsApp-Medien, Upload oder Datenbankeintrag vorliegen. "
+        "Behaupte niemals, dass Dokumente vorhanden sind, wenn sie nicht im Kontext stehen. Stelle immer nur 1 bis 2 konkrete Rückfragen. "
         "Nutze Memory, Trainingswissen und aktive System-Prompts, um persönlicher und weniger generisch zu antworten. "
         "Wenn alle Kerndaten vorhanden sind, bestätige die Übergabe an den Recruiter. Antworte nur im JSON-Schema."
     )
@@ -472,13 +473,6 @@ def extract_twilio_media(form):
 def infer_documents_from_conversation(conversation):
     documents = set()
     for event in conversation:
-        text = event.get("body", "").lower()
-        if "lebenslauf" in text or "cv" in text:
-            documents.add("cv")
-        if "zertifikat" in text or "schein" in text or "abschluss" in text:
-            documents.add("certificate")
-        if "ausweis" in text or "pass" in text or "id" in text:
-            documents.add("id")
         for media in event.get("media", []):
             content_type = media.get("contentType", "")
             if "pdf" in content_type or "image" in content_type:
@@ -489,6 +483,35 @@ def infer_documents_from_conversation(conversation):
                 else:
                     documents.add("id")
     return [doc for doc in REQUIRED_DOCUMENTS if doc in documents]
+
+
+def normalize_documents(documents):
+    if not isinstance(documents, list):
+        return []
+    allowed = set(REQUIRED_DOCUMENTS)
+    clean = []
+    for document in documents:
+        if document in allowed and document not in clean:
+            clean.append(document)
+    return clean
+
+
+def apply_document_truth(payload, result):
+    actual_documents = normalize_documents(payload.get("documents", []))
+    missing = [doc for doc in REQUIRED_DOCUMENTS if doc not in actual_documents]
+    result["documents"] = actual_documents
+    result["missingDocuments"] = missing
+
+    checklist = result.get("checklist", [])
+    protected_labels = set(DOCUMENT_LABELS.values())
+    checklist = [item for item in checklist if item.get("label") not in protected_labels]
+    checklist.extend({"label": DOCUMENT_LABELS[doc], "done": doc in actual_documents} for doc in REQUIRED_DOCUMENTS)
+    result["checklist"] = checklist
+
+    if missing:
+        missing_labels = ", ".join(DOCUMENT_LABELS[doc] for doc in missing)
+        result["nextAction"] = f"Bot muss noch folgende Dokumente einholen: {missing_labels}."
+    return result
 
 
 def append_conversation_event(phone, event):
@@ -961,6 +984,8 @@ def evaluate_with_openai(payload):
             "Qualifizierung annehmen, sondern musst als nächste Aktion Kontaktfreigabe oder Telefonnummer anfordern. "
             "Wenn noch keine Antworten vorliegen, erstelle eine individuelle WhatsApp-Erstnachricht. Analysiere den Erstkontakt, "
             "extrahiere strukturierte Bewerberdaten, prüfe Pflichtdokumente und gib eine knappe Recruiter-Empfehlung. "
+            "Dokumente darfst du nur als vorhanden markieren, wenn sie ausdrücklich im Feld documents, als Upload oder in der Datenbank stehen. "
+            "Wenn Erfahrung, Verfügbarkeit, Gehaltswunsch oder Dokumente fehlen, fordere sie aktiv an. "
             "Antworte nur im geforderten JSON-Schema."
         ),
         "input": json.dumps({"payload": payload, "context": bot_context}, ensure_ascii=False),
@@ -998,6 +1023,7 @@ def evaluate_with_openai(payload):
     result["model"] = MODEL
     result["usage"] = normalize_openai_usage(data.get("usage", {}))
     result["responseId"] = data.get("id")
+    result = apply_document_truth(payload, result)
     log_usage_event(payload, result, ai_enabled=True)
     update_memory_from_intake(normalize_twilio_whatsapp(payload.get("phone", "")) or payload.get("phone", "manual"), {
         "candidate": result,
@@ -1028,7 +1054,7 @@ def safe_openai_error(exc):
 
 def rule_based_evaluation(payload, ai_enabled):
     answers = payload.get("answers", "")
-    documents = payload.get("documents", [])
+    documents = normalize_documents(payload.get("documents", []))
     phone = payload.get("phone", "")
     whatsapp_opt_in = bool(payload.get("whatsappOptIn"))
     missing = [doc for doc in REQUIRED_DOCUMENTS if doc not in documents]
